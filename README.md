@@ -1,2 +1,1 @@
-# cmpe131
-Parallel History Slider
+cmpe-131
