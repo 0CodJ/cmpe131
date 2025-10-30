@@ -16,10 +16,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { Calendar, Clock, Tag, Search, Database, Globe, Plus, Minus } from 'lucide-react';
 // Import our database connection and the type definition for database events
 import { supabase, HistoricalEvent } from './lib/supabase';
+import { listApproved as listApprovedLocal } from './lib/localEvents';
 // Import the function to get events from the internet and the type for those events
 import { fetchHistoricalEvents, ApiHistoricalEvent } from './lib/historyApi';
 // Import the form component that lets users add their own events
 import { AddEventForm } from './components/AddEventForm';
+import { SimpleAuthProvider, useSimpleAuth } from './context/SimpleAuthContext';
+import { AuthPanel } from './components/AuthPanel';
+import { AdminDashboard } from './components/AdminDashboard';
 
 
 /**
@@ -46,7 +50,7 @@ interface CombinedEvent {
  * @returns 
  */
 // This is the main component that makes up our entire app
-function App() {
+function MainApp() {
   // Create a list to store all the historical events we find
   const [events, setEvents] = useState<CombinedEvent[]>([]);
   // Keep track of whether we're currently loading data (showing spinner)
@@ -179,44 +183,23 @@ function App() {
         combinedEvents.push(...filteredApiEvents); // Add filtered events to our list
       }
 
-      // If user wants to see events from our custom database
+      // If user wants to see events from our custom store (approved only)
       if (showDbEvents) {
-        try {
-          // Start building a database query
-          let query = supabase
-            .from('historical_events') // Look in the historical_events table
-            .select('*') // Get all columns
-            .eq('month', selectedMonth) // Only events from selected month
-            .eq('day', selectedDay) // Only events from selected day
-            .order('year', { ascending: false }); // Sort by year, newest first
-
-          // If user specified a year, add that to the query
-          if (searchYear) {
-            query = query.eq('year', parseInt(searchYear));
-          }
-
-          // If user selected a specific category, add that to the query
-          if (selectedCategory !== 'all') {
-            query = query.eq('category', selectedCategory);
-          }
-
-          // Execute the database query
-          const { data, error } = await query;
-          if (error) {
-            console.warn('Supabase connection issue:', error.message);
-            // Continue without database events if there's a connection issue
-          } else {
-            // Convert database events to our standard format
-            const dbEvents: CombinedEvent[] = (data || []).map((event: HistoricalEvent) => ({
-              ...event, // Copy all the event data
-              source: 'database' as const // Mark this as coming from our database
-            }));
-            combinedEvents.push(...dbEvents); // Add database events to our list
-          }
-        } catch (dbError) {
-          console.warn('Database connection failed:', dbError);
-          // Continue without database events
-        }
+        const local = listApprovedLocal()
+          .filter(e => e.month === selectedMonth && e.day === selectedDay)
+          .filter(e => (searchYear ? e.year === parseInt(searchYear) : true))
+          .filter(e => (selectedCategory !== 'all' ? e.category === selectedCategory : true));
+        const formatted: CombinedEvent[] = local.map(e => ({
+          id: e.id,
+          title: e.title,
+          description: e.description,
+          month: e.month,
+          day: e.day,
+          year: e.year,
+          category: e.category,
+          source: 'database',
+        }));
+        combinedEvents.push(...formatted);
       }
 
       // Sort all events by year (newest first) and save them
@@ -280,6 +263,9 @@ function App() {
     return `${months[month - 1]} ${day}, ${year}`; // Example: "January 15, 1969"
   };
 
+  const { profile } = useSimpleAuth();
+  const [showAdmin, setShowAdmin] = useState(false);
+
   // This is what gets displayed on the webpage
   return (
     // Main container with dark gradient background that fills the whole screen
@@ -297,6 +283,24 @@ function App() {
           {/* Subtitle explaining what the app does */}
           <p className="text-slate-300 text-lg">Discover what happened on any date in history</p>
         </header>
+
+        {/* Auth panel and Admin toggle */}
+        <div className="mb-8 grid grid-cols-1 gap-4">
+          <AuthPanel />
+          {profile?.role === 'admin' && (
+            <div className="text-right">
+              <button
+                onClick={() => setShowAdmin((v) => !v)}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg"
+              >
+                {showAdmin ? 'Hide Admin Dashboard' : 'Open Admin Dashboard'}
+              </button>
+            </div>
+          )}
+          {showAdmin && profile?.role === 'admin' && (
+            <AdminDashboard />
+          )}
+        </div>
 
         {/* Time Slider Section */}
         <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-6 mb-8 border border-slate-700">
@@ -583,6 +587,14 @@ function App() {
         />
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <SimpleAuthProvider>
+      <MainApp />
+    </SimpleAuthProvider>
   );
 }
 
