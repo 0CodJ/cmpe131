@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Plus, X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { useState } from "react";
+import { Plus, X } from "lucide-react";
+// import { supabase } from '../lib/supabase';
+import { useSimpleAuth } from "../context/SimpleAuthContext";
+import { addEvent } from "../lib/localEvents";
 
 interface AddEventFormProps {
   onEventAdded: () => void;
@@ -8,56 +10,76 @@ interface AddEventFormProps {
   defaultDay?: number;
 }
 
-export function AddEventForm({ onEventAdded, defaultMonth, defaultDay }: AddEventFormProps) {
+export function AddEventForm({
+  onEventAdded,
+  defaultMonth,
+  defaultDay,
+}: AddEventFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { profile } = useSimpleAuth();
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
+    title: "",
+    description: "",
     month: defaultMonth || new Date().getMonth() + 1,
     day: defaultDay || new Date().getDate(),
     year: new Date().getFullYear(),
-    category: 'General'
+    category: "General",
   });
 
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
 
-  const categories = ['General', 'Science', 'Politics', 'History', 'Technology', 'Arts', 'Economics'];
+  const categories = [
+    "General",
+    "Science",
+    "Politics",
+    "History",
+    "Technology",
+    "Arts",
+    "Economics",
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('historical_events')
-        .insert([formData]);
-
-      if (error) {
-        if (error.message.includes('JWT') || error.message.includes('Invalid API key')) {
-          alert('Database connection not configured. Please set up Supabase credentials to add custom events.');
-        } else {
-          throw error;
-        }
+      if (!profile) {
+        alert("Please sign in to add an event.");
         return;
       }
+      // Save as pending approval in local storage (admins will approve)
+      addEvent({
+        ...formData,
+        created_by: profile.id,
+      });
 
       setFormData({
-        title: '',
-        description: '',
+        title: "",
+        description: "",
         month: defaultMonth || new Date().getMonth() + 1,
         day: defaultDay || new Date().getDate(),
         year: new Date().getFullYear(),
-        category: 'General'
+        category: "General",
       });
       setIsOpen(false);
       onEventAdded();
     } catch (error) {
-      console.error('Error adding event:', error);
-      alert('Failed to add event. Please try again.');
+      console.error("Error adding event:", error);
+      alert("Failed to add event. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -90,119 +112,140 @@ export function AddEventForm({ onEventAdded, defaultMonth, defaultDay }: AddEven
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Event Title *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              placeholder="e.g., First Moon Landing"
-            />
+        {!profile ? (
+          <div className="p-6 text-slate-300">
+            Please sign in to add events.
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Description *
-            </label>
-            <textarea
-              required
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              rows={4}
-              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
-              placeholder="Describe what happened..."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Month *
-              </label>
-              <select
-                value={formData.month}
-                onChange={(e) => setFormData({ ...formData, month: parseInt(e.target.value) })}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              >
-                {months.map((month, index) => (
-                  <option key={month} value={index + 1}>
-                    {month}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Day *
-              </label>
-              <select
-                value={formData.day}
-                onChange={(e) => setFormData({ ...formData, day: parseInt(e.target.value) })}
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-              >
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                  <option key={day} value={day}>
-                    {day}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Year *
+                Event Title *
               </label>
               <input
-                type="number"
+                type="text"
                 required
-                value={formData.year}
-                onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({ ...formData, title: e.target.value })
+                }
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                placeholder="e.g., 1969"
+                placeholder="e.g., First Moon Landing"
               />
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Category *
-            </label>
-            <select
-              value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-            >
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Description *
+              </label>
+              <textarea
+                required
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData({ ...formData, description: e.target.value })
+                }
+                rows={4}
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition resize-none"
+                placeholder="Describe what happened..."
+              />
+            </div>
 
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={() => setIsOpen(false)}
-              className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 text-white rounded-lg transition font-medium"
-            >
-              {loading ? 'Adding...' : 'Add Event'}
-            </button>
-          </div>
-        </form>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Month *
+                </label>
+                <select
+                  value={formData.month}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      month: parseInt(e.target.value),
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                >
+                  {months.map((month, index) => (
+                    <option key={month} value={index + 1}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Day *
+                </label>
+                <select
+                  value={formData.day}
+                  onChange={(e) =>
+                    setFormData({ ...formData, day: parseInt(e.target.value) })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                >
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                    <option key={day} value={day}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Year *
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={formData.year}
+                  onChange={(e) =>
+                    setFormData({ ...formData, year: parseInt(e.target.value) })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  placeholder="e.g., 1969"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Category *
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) =>
+                  setFormData({ ...formData, category: e.target.value })
+                }
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              >
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="flex-1 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 text-white rounded-lg transition font-medium"
+              >
+                {loading ? "Adding..." : "Add Event"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
