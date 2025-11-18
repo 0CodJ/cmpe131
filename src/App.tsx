@@ -93,6 +93,12 @@ function MainApp() {
     return numericYear;
   };
 
+  // Helper function to remove punctuation and normalize text for searching (only words)
+  const normalizeForSearch = (text: string): string => {
+    // Remove all punctuation and keep only alphanumeric characters and spaces
+    return text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  };
+
   // List of all month names for the dropdown menu
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -112,13 +118,17 @@ function MainApp() {
         const apiEvents = await fetchHistoricalEvents(selectedMonth, selectedDay);
         
         const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => {
-          const firstSentence = event.text.split('.')[0].trim();
-          const truncated = event.text.substring(0, 80).trim();
-          const title = firstSentence.length > 0 && firstSentence.length <= 100 
-            ? firstSentence 
-            : truncated.length < event.text.length 
-              ? truncated + '...' 
-              : event.text;
+          // Extract a clean title - find first complete sentence (period followed by space)
+          // This handles cases like "U.S." or "Dr." where period isn't a sentence end
+          let title: string;
+          const sentenceEndIndex = event.text.indexOf('. ');
+          if (sentenceEndIndex > 0 && sentenceEndIndex <= 200) {
+            // Use first sentence if it ends with period+space and is reasonable length
+            title = event.text.substring(0, sentenceEndIndex + 1).trim();
+          } else {
+            // If no sentence ending found or too long, use first 150 chars
+            title = event.text.length > 150 ? event.text.substring(0, 150).trim() + '...' : event.text.trim();
+          }
           const numericYear = parseYear(event.year);
           
           return {
@@ -191,14 +201,17 @@ function MainApp() {
         
         // Convert the internet events to our standard format
         const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => {
-          // Extract a clean title (first sentence or first 80 chars, whichever is shorter)
-          const firstSentence = event.text.split('.')[0].trim();
-          const truncated = event.text.substring(0, 80).trim();
-          const title = firstSentence.length > 0 && firstSentence.length <= 100 
-            ? firstSentence 
-            : truncated.length < event.text.length 
-              ? truncated + '...' 
-              : event.text;
+          // Extract a clean title - find first complete sentence (period followed by space)
+          // This handles cases like "U.S." or "Dr." where period isn't a sentence end
+          let title: string;
+          const sentenceEndIndex = event.text.indexOf('. ');
+          if (sentenceEndIndex > 0 && sentenceEndIndex <= 200) {
+            // Use first sentence if it ends with period+space and is reasonable length
+            title = event.text.substring(0, sentenceEndIndex + 1).trim();
+          } else {
+            // If no sentence ending found or too long, use first 150 chars
+            title = event.text.length > 150 ? event.text.substring(0, 150).trim() + '...' : event.text.trim();
+          }
           // Parse year - handle formats like "42 BC", "1969", etc.
           const numericYear = parseYear(event.year);
           
@@ -232,12 +245,20 @@ function MainApp() {
             // If keywords provided but month or day is blank, show no events
             filteredApiEvents = [];
           } else {
-            // Filter by keywords in title or description (case-insensitive)
-            const keywords = searchKeywords.toLowerCase().trim();
-            filteredApiEvents = filteredApiEvents.filter(e =>
-              e.title.toLowerCase().includes(keywords) ||
-              e.description.toLowerCase().includes(keywords)
-            );
+            // Normalize search keywords (remove punctuation, only words)
+            const normalizedKeywords = normalizeForSearch(searchKeywords);
+            // If normalized keywords are empty (only punctuation was entered), show no events
+            if (!normalizedKeywords || normalizedKeywords.trim().length === 0) {
+              filteredApiEvents = [];
+            } else {
+              // Filter by keywords in title or description (case-insensitive, punctuation ignored)
+              filteredApiEvents = filteredApiEvents.filter(e => {
+                const normalizedTitle = normalizeForSearch(e.title);
+                const normalizedDescription = normalizeForSearch(e.description);
+                return normalizedTitle.includes(normalizedKeywords) ||
+                       normalizedDescription.includes(normalizedKeywords);
+              });
+            }
           }
         }
         combinedEvents.push(...filteredApiEvents); // Add filtered events to our list
@@ -256,12 +277,20 @@ function MainApp() {
             // If keywords provided but month or day is blank, show no events
             local = [];
           } else {
-            // Filter by keywords in title or description (case-insensitive)
-            const keywords = searchKeywords.toLowerCase().trim();
-            local = local.filter(e =>
-              e.title.toLowerCase().includes(keywords) ||
-              e.description.toLowerCase().includes(keywords)
-            );
+            // Normalize search keywords (remove punctuation, only words)
+            const normalizedKeywords = normalizeForSearch(searchKeywords);
+            // If normalized keywords are empty (only punctuation was entered), show no events
+            if (!normalizedKeywords || normalizedKeywords.trim().length === 0) {
+              local = [];
+            } else {
+              // Filter by keywords in title or description (case-insensitive, punctuation ignored)
+              local = local.filter(e => {
+                const normalizedTitle = normalizeForSearch(e.title);
+                const normalizedDescription = normalizeForSearch(e.description);
+                return normalizedTitle.includes(normalizedKeywords) ||
+                       normalizedDescription.includes(normalizedKeywords);
+              });
+            }
           }
         }
         
@@ -318,7 +347,7 @@ function MainApp() {
             <h1 className="text-5xl font-bold text-white">Historical Events</h1>
           </div>
           {/* Subtitle explaining what the app does */}
-          <p className="text-slate-300 text-lg">Discover what happened on any date in history</p>
+          <p className="text-slate-300 text-lg">Discover what happened on any date in history!</p>
         </header>
 
         {/* Auth panel and Admin toggle */}
@@ -544,7 +573,7 @@ function MainApp() {
                 {/* Event header with title and badges */}
                 <div className="mb-3">
                   {/* Event title - full width */}
-                  <h4 className="text-xl font-semibold text-white mb-3 leading-relaxed">{event.title}</h4>
+                  <h4 className="text-xl font-semibold text-white mb-3 leading-relaxed break-words whitespace-normal overflow-visible">{event.title}</h4>
                   {/* Badges showing category and source */}
                   <div className="flex gap-2">
                     {/* Category badge */}
