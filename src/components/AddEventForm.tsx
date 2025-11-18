@@ -27,7 +27,7 @@ export function AddEventForm({
     category: "General",
   });
 
-  const months = [
+  const months = [ 
     "January",
     "February",
     "March",
@@ -45,7 +45,7 @@ export function AddEventForm({
   const categories = [
     "General",
     "Science",
-    "Politics",
+    "Politics & Government",
     "History",
     "Technology",
     "Arts",

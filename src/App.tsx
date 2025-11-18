@@ -108,7 +108,7 @@ function MainApp() {
   ];
 
   // List of all event categories for the dropdown menu
-  const categories = ['all', 'Science', 'Politics', 'History', 'Technology', 'Arts', 'Economics'];
+  const categories = ['all', 'Science', 'Politics & Government', 'History', 'Technology', 'Arts', 'Economics'];
 
   // This function fetches all events for the selected month/day (without filters) for bounds calculation
   const fetchAllEventsForDate = useCallback(async () => {
