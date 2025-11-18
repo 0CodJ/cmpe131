@@ -326,8 +326,8 @@ function MainApp() {
             <h2 className="text-2xl font-semibold text-white">Search by Date</h2>
           </div>
 
-          {/* Grid of search controls - 3 columns on desktop, 1 on mobile */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Grid of search controls - 4 columns on desktop, 1 on mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             {/* Month selector dropdown */}
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Month</label>
@@ -360,6 +360,22 @@ function MainApp() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Year input field */}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Year</label>
+              <input
+                type="number"
+                value={searchYear}
+                onChange={(e) => {
+                  // Allow free typing - don't clamp the input value
+                  // The slider will handle clamping to bounds
+                  setSearchYear(e.target.value);
+                }}
+                placeholder="Enter year (Negative = BC)"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
+              />
             </div>
 
             {/* Category selector dropdown */}

@@ -52,10 +52,17 @@ export function TimelineSlider({
   useEffect(() => {
     if (searchYear) {
       const yearNum = parseInt(searchYear);
-      if (!isNaN(yearNum) && yearNum >= minYear && yearNum <= maxYear) {
-        setSliderYear(yearNum);
+      if (!isNaN(yearNum)) {
+        // Clamp to bounds - if out of bounds, jump to min or max
+        if (yearNum < minYear) {
+          setSliderYear(minYear);
+        } else if (yearNum > maxYear) {
+          setSliderYear(maxYear);
+        } else {
+          setSliderYear(yearNum);
+        }
       } else {
-        // If searchYear is out of bounds, set to middle
+        // If searchYear is invalid, set to middle
         setSliderYear(Math.floor((minYear + maxYear) / 2));
       }
     } else {
