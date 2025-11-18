@@ -71,6 +71,8 @@ function MainApp() {
   const [searchYear, setSearchYear] = useState<string>('');
   // Store which category of events to show (starts with 'all' to show everything)
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // Store keyword search text (optional, starts empty)
+  const [searchKeywords, setSearchKeywords] = useState<string>('');
   // Whether to show events from the internet API (starts as true)
   const [showApiEvents, setShowApiEvents] = useState(true);
   // Whether to show events from our custom database (starts as true)
@@ -224,15 +226,45 @@ function MainApp() {
         if (selectedCategory !== 'all') {
           filteredApiEvents = filteredApiEvents.filter(e => e.category === selectedCategory);
         }
+        // Keyword search: only works if both month and day are selected
+        if (searchKeywords.trim()) {
+          if (selectedMonth === 0 || selectedDay === 0) {
+            // If keywords provided but month or day is blank, show no events
+            filteredApiEvents = [];
+          } else {
+            // Filter by keywords in title or description (case-insensitive)
+            const keywords = searchKeywords.toLowerCase().trim();
+            filteredApiEvents = filteredApiEvents.filter(e =>
+              e.title.toLowerCase().includes(keywords) ||
+              e.description.toLowerCase().includes(keywords)
+            );
+          }
+        }
         combinedEvents.push(...filteredApiEvents); // Add filtered events to our list
       }
 
       // If user wants to see events from our custom store (approved only)
       if (showDbEvents) {
-        const local = listApprovedLocal()
+        let local = listApprovedLocal()
           .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay))
           .filter(e => (searchYear ? e.year === parseInt(searchYear) : true))
           .filter(e => (selectedCategory !== 'all' ? e.category === selectedCategory : true));
+        
+        // Keyword search: only works if both month and day are selected
+        if (searchKeywords.trim()) {
+          if (selectedMonth === 0 || selectedDay === 0) {
+            // If keywords provided but month or day is blank, show no events
+            local = [];
+          } else {
+            // Filter by keywords in title or description (case-insensitive)
+            const keywords = searchKeywords.toLowerCase().trim();
+            local = local.filter(e =>
+              e.title.toLowerCase().includes(keywords) ||
+              e.description.toLowerCase().includes(keywords)
+            );
+          }
+        }
+        
         const formatted: CombinedEvent[] = local.map(e => ({
           id: e.id,
           title: e.title,
@@ -256,7 +288,7 @@ function MainApp() {
     } finally {
       setLoading(false); // Hide the loading spinner
     }
-  }, [selectedMonth, selectedDay, searchYear, selectedCategory, showApiEvents, showDbEvents]);
+  }, [selectedMonth, selectedDay, searchYear, selectedCategory, searchKeywords, showApiEvents, showDbEvents]);
 
   // Fetch all events for bounds calculation when month/day changes
   useEffect(() => {
@@ -390,7 +422,7 @@ function MainApp() {
                   // The slider will handle clamping to bounds
                   setSearchYear(e.target.value);
                 }}
-                placeholder="Enter year (Negative = BC)"
+                placeholder="Enter year (Optional)"
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
               />
             </div>
@@ -411,6 +443,23 @@ function MainApp() {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Keyword Search Input */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Search Keywords</label>
+            <input
+              type="text"
+              value={searchKeywords}
+              onChange={(e) => setSearchKeywords(e.target.value)}
+              placeholder="Enter keywords to search in event titles and descriptions. (Month and day fields must be filled in to use keyword search)"
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            />
+            {searchKeywords && (selectedMonth === 0 || selectedDay === 0) && (
+              <p className="text-yellow-400 text-sm mt-2">
+                Please select both month and day to use keyword search.
+              </p>
+            )}
           </div>
 
           {/* Timeline Slider for Year Selection */}

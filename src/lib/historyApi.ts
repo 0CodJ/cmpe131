@@ -41,6 +41,13 @@ const getSampleEvents = (month: number, day: number): ApiHistoricalEvent[] => {
       html: "The September 11 attacks occurred in the United States.",
       no_year_html: "The September 11 attacks occurred in the United States.",
       links: []
+    },
+    {
+      year: "1989",
+      text: "The Berlin Wall fell during the Peaceful Revolution opening the border between East and West Germany.",
+      html: "The Berlin Wall fell during the Peaceful Revolution opening the border between East and West Germany.",
+      no_year_html: "The Berlin Wall fell during the Peaceful Revolution opening the border between East and West Germany.",
+      links: []
     }
   ];
 

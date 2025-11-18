@@ -19,6 +19,7 @@ export function TimelineSlider({
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [sliderYear, setSliderYear] = useState<number | null>(null);
+  const currentYearRef = useRef<number | null>(null);
 
   // Calculate bounds based on events for the selected month/day
   const calculateBounds = useCallback(() => {
@@ -54,20 +55,27 @@ export function TimelineSlider({
       const yearNum = parseInt(searchYear);
       if (!isNaN(yearNum)) {
         // Clamp to bounds - if out of bounds, jump to min or max
+        let finalYear: number;
         if (yearNum < minYear) {
-          setSliderYear(minYear);
+          finalYear = minYear;
         } else if (yearNum > maxYear) {
-          setSliderYear(maxYear);
+          finalYear = maxYear;
         } else {
-          setSliderYear(yearNum);
+          finalYear = yearNum;
         }
+        setSliderYear(finalYear);
+        currentYearRef.current = finalYear;
       } else {
         // If searchYear is invalid, set to middle
-        setSliderYear(Math.floor((minYear + maxYear) / 2));
+        const middleYear = Math.floor((minYear + maxYear) / 2);
+        setSliderYear(middleYear);
+        currentYearRef.current = middleYear;
       }
     } else {
       // If no searchYear, set to middle of range
-      setSliderYear(Math.floor((minYear + maxYear) / 2));
+      const middleYear = Math.floor((minYear + maxYear) / 2);
+      setSliderYear(middleYear);
+      currentYearRef.current = middleYear;
     }
   }, [minYear, maxYear, searchYear]);
 
@@ -85,39 +93,51 @@ export function TimelineSlider({
   };
 
   // Handle mouse/touch events for dragging
+  // This updates the visual position but doesn't trigger event loading during drag
   const handleMove = useCallback(
-    (clientX: number) => {
+    (clientX: number, shouldUpdateEvents: boolean = false) => {
       if (!sliderRef.current) return;
 
       const rect = sliderRef.current.getBoundingClientRect();
       const percentage = ((clientX - rect.left) / rect.width) * 100;
       const newYear = percentageToYear(percentage);
       setSliderYear(newYear);
-      onYearChange(newYear.toString());
+      currentYearRef.current = newYear; // Store in ref for immediate access
+      // Only update events if explicitly requested (e.g., on track click or mouse up)
+      if (shouldUpdateEvents) {
+        onYearChange(newYear.toString());
+      }
     },
     [minYear, maxYear, onYearChange]
   );
 
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
-    handleMove(e.clientX);
+    // Update visual position but don't trigger event loading yet
+    handleMove(e.clientX, false);
     e.preventDefault();
   };
 
   const handleMouseMove = (e: MouseEvent) => {
     if (isDragging) {
-      handleMove(e.clientX);
+      // Update visual position but don't trigger event loading during drag
+      handleMove(e.clientX, false);
     }
   };
 
   const handleMouseUp = () => {
+    if (isDragging && currentYearRef.current !== null) {
+      // Now trigger event loading with the final year value
+      onYearChange(currentYearRef.current.toString());
+    }
     setIsDragging(false);
   };
 
   // Handle click on track
   const handleTrackClick = (e: React.MouseEvent) => {
     if (e.target === sliderRef.current || (e.target as HTMLElement).classList.contains('slider-track')) {
-      handleMove(e.clientX);
+      // Track click should immediately update events (not a drag operation)
+      handleMove(e.clientX, true);
     }
   };
 
@@ -140,7 +160,7 @@ export function TimelineSlider({
 
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-slate-300 mb-4">
+      <label className="block text-2xl font-medium text-slate-300 mb-10">
         Year Selection
       </label>
       
@@ -206,8 +226,8 @@ export function TimelineSlider({
       </div>
 
       {/* Info text */}
-      <div className="text-xs text-slate-400 text-center">
-        Drag the blue handle to select a year. Range: {minYear} to {maxYear}
+      <div className="text-lg text-slate-400 text-center">
+        Drag the blue handle across the timeline to select a year! Range: {minYear} to {maxYear}
       </div>
     </div>
   );
