@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Plus, Minus } from 'lucide-react';
 import type { CombinedEvent } from '../App';
 
 interface TimelineSliderProps {
@@ -7,6 +8,7 @@ interface TimelineSliderProps {
   selectedDay: number;
   searchYear: string;
   onYearChange: (year: string) => void;
+  onBoundsChange?: (bounds: { minYear: number; maxYear: number }) => void;
 }
 
 export function TimelineSlider({
@@ -15,11 +17,16 @@ export function TimelineSlider({
   selectedDay,
   searchYear,
   onYearChange,
+  onBoundsChange,
 }: TimelineSliderProps) {
   const sliderRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [sliderYear, setSliderYear] = useState<number | null>(null);
   const currentYearRef = useRef<number | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(0); // 0 = no zoom, positive = zoomed in, negative = zoomed out
+  
+  // Zoom increments in years: [5, 10, 25, 50, 100, 200, 500]
+  const zoomIncrements = [5, 10, 25, 50, 100, 200, 250, 500];
 
   // Calculate bounds based on events for the selected month/day
   const calculateBounds = useCallback(() => {
@@ -47,7 +54,65 @@ export function TimelineSlider({
     return { minYear, maxYear };
   }, [events, selectedMonth, selectedDay]);
 
-  const { minYear, maxYear } = calculateBounds();
+  const baseBounds = calculateBounds();
+  const { minYear: baseMinYear, maxYear: baseMaxYear } = baseBounds;
+
+  // Calculate zoomed bounds based on zoom level
+  // Zoom in (positive zoomLevel): reduces range by specific increments [5, 10, 25, 50, 100, 200, 500]
+  // Zoom out (negative zoomLevel): increases range but never exceeds base bounds
+  const calculateZoomedBounds = useCallback(() => {
+    if (zoomLevel === 0) {
+      return { minYear: baseMinYear, maxYear: baseMaxYear };
+    }
+
+    const centerYear = (baseMinYear + baseMaxYear) / 2;
+    const baseRange = baseMaxYear - baseMinYear;
+
+    if (zoomLevel > 0) {
+      // Zoom in: apply cumulative increments directly to bounds
+      // Upper bound decreases by increment, lower bound increases by increment
+      let totalIncrement = 0;
+      for (let i = 0; i < Math.min(zoomLevel, zoomIncrements.length); i++) {
+        totalIncrement += zoomIncrements[i];
+      }
+      
+      // Calculate new bounds: lower bound + increment, upper bound - increment
+      const newMinYear = baseMinYear + totalIncrement;
+      const newMaxYear = baseMaxYear - totalIncrement;
+      
+      // Ensure valid range (min < max) and don't exceed center
+      if (newMinYear >= newMaxYear) {
+        // If bounds would cross, set to center ± 1
+        const center = Math.round(centerYear);
+        return { minYear: center, maxYear: center + 1 };
+      }
+      
+      return { minYear: newMinYear, maxYear: newMaxYear };
+    } else {
+      // Zoom out: increase range but never exceed base bounds
+      let totalIncrease = 0;
+      for (let i = 0; i < Math.min(Math.abs(zoomLevel), zoomIncrements.length); i++) {
+        totalIncrease += zoomIncrements[i];
+      }
+      const newRange = baseRange + totalIncrease;
+      const newMinYear = Math.round(centerYear - newRange / 2);
+      const newMaxYear = Math.round(centerYear + newRange / 2);
+      // Clamp to never exceed base bounds
+      return {
+        minYear: Math.max(newMinYear, baseMinYear),
+        maxYear: Math.min(newMaxYear, baseMaxYear)
+      };
+    }
+  }, [baseMinYear, baseMaxYear, zoomLevel]);
+
+  const { minYear, maxYear } = calculateZoomedBounds();
+
+  // Notify parent component of zoomed bounds changes
+  useEffect(() => {
+    if (onBoundsChange) {
+      onBoundsChange({ minYear, maxYear });
+    }
+  }, [minYear, maxYear, onBoundsChange]);
 
   // Initialize slider year when bounds change or when searchYear changes
   useEffect(() => {
@@ -152,17 +217,90 @@ export function TimelineSlider({
     }
   }, [isDragging, handleMouseMove]);
 
+  // Handle zoom in (plus button) - progressive increments: 5, 10, 25, 50, 100, 200, 500
+  const handleZoomIn = () => {
+    setZoomLevel(prev => {
+      // If at negative zoom (zoomed out), go directly to first zoom in level
+      if (prev < 0) {
+        return 1;
+      }
+      // Limit to maximum zoom level (all increments applied)
+      if (prev >= zoomIncrements.length) {
+        return prev;
+      }
+      return prev + 1;
+    });
+  };
+
+  // Handle zoom out (minus button) - only works if zoomed in, never exceeds base bounds
+  const handleZoomOut = () => {
+    setZoomLevel(prev => {
+      // Can only zoom out if we're zoomed in (positive zoom level)
+      // Or if we're at 0, we can go to -1 but bounds will clamp to base
+      return prev - 1;
+    });
+  };
+
+  // Reset zoom when base bounds change
+  useEffect(() => {
+    setZoomLevel(0);
+  }, [baseMinYear, baseMaxYear]);
+
+  // Clamp slider year to new bounds when zoom changes
+  useEffect(() => {
+    if (sliderYear !== null) {
+      const clampedYear = Math.max(minYear, Math.min(maxYear, sliderYear));
+      if (clampedYear !== sliderYear) {
+        setSliderYear(clampedYear);
+        currentYearRef.current = clampedYear;
+      }
+    }
+  }, [minYear, maxYear, zoomLevel]);
+
   if (sliderYear === null) {
     return null;
   }
 
   const handlePosition = yearToPercentage(sliderYear);
 
+  // Calculate current zoom increment text
+  const getZoomText = () => {
+    if (zoomLevel === 0 || zoomLevel < 0) {
+      return "Base";
+    } else {
+      // Show only the current increment, not cumulative
+      const currentIncrement = zoomIncrements[Math.min(zoomLevel - 1, zoomIncrements.length - 1)];
+      return `Zoom: ${currentIncrement} years`;
+    }
+  };
+
   return (
     <div className="w-full">
-      <label className="block text-2xl font-medium text-slate-300 mb-10">
-        Year Selection
-      </label>
+      <div className="flex items-center justify-between mb-10">
+        <label className="block text-2xl font-medium text-slate-300">
+          Year Selection
+        </label>
+        {/* Zoom controls */}
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-slate-400 font-medium">
+            {getZoomText()}
+          </span>
+          <button
+            onClick={handleZoomOut}
+            className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-colors"
+            title="Zoom out (wider range)"
+          >
+            <Minus className="w-5 h-5" />
+          </button>
+          <button
+            onClick={handleZoomIn}
+            className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-colors"
+            title="Zoom in (narrower range)"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
       
       {/* Timeline container */}
       <div className="relative mb-2 mt-8">

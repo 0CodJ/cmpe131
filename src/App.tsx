@@ -73,6 +73,8 @@ function MainApp() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   // Store keyword search text (optional, starts empty)
   const [searchKeywords, setSearchKeywords] = useState<string>('');
+  // Store zoomed bounds from timeline slider
+  const [zoomedBounds, setZoomedBounds] = useState<{ minYear: number; maxYear: number } | null>(null);
   // Whether to show events from the internet API (starts as true)
   const [showApiEvents, setShowApiEvents] = useState(true);
   // Whether to show events from our custom database (starts as true)
@@ -261,6 +263,12 @@ function MainApp() {
             }
           }
         }
+        // Filter by zoomed bounds if zoom is applied
+        if (zoomedBounds) {
+          filteredApiEvents = filteredApiEvents.filter(e => 
+            e.year >= zoomedBounds.minYear && e.year <= zoomedBounds.maxYear
+          );
+        }
         combinedEvents.push(...filteredApiEvents); // Add filtered events to our list
       }
 
@@ -293,6 +301,12 @@ function MainApp() {
             }
           }
         }
+        // Filter by zoomed bounds if zoom is applied
+        if (zoomedBounds) {
+          local = local.filter(e => 
+            e.year >= zoomedBounds.minYear && e.year <= zoomedBounds.maxYear
+          );
+        }
         
         const formatted: CombinedEvent[] = local.map(e => ({
           id: e.id,
@@ -317,11 +331,13 @@ function MainApp() {
     } finally {
       setLoading(false); // Hide the loading spinner
     }
-  }, [selectedMonth, selectedDay, searchYear, selectedCategory, searchKeywords, showApiEvents, showDbEvents]);
+  }, [selectedMonth, selectedDay, searchYear, selectedCategory, searchKeywords, zoomedBounds, showApiEvents, showDbEvents]);
 
   // Fetch all events for bounds calculation when month/day changes
   useEffect(() => {
     fetchAllEventsForDate();
+    // Reset zoomed bounds when month/day changes (zoom will reset in TimelineSlider)
+    setZoomedBounds(null);
   }, [fetchAllEventsForDate]);
 
   // This runs automatically whenever the user changes any search settings
@@ -499,6 +515,7 @@ function MainApp() {
               selectedDay={selectedDay}
               searchYear={searchYear}
               onYearChange={setSearchYear}
+              onBoundsChange={setZoomedBounds}
             />
           </div>
 
