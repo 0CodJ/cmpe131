@@ -43,13 +43,13 @@ export function AddEventForm({
   ];
 
   const categories = [
-    "General",
-    "Science",
-    "Politics & Government",
     "History",
-    "Technology",
-    "Arts",
+    "Politics",
+    "Science",
     "Economics",
+    "Military",
+    "People",
+    "Technology",
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {

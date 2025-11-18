@@ -1,5 +1,5 @@
 /** 
- * Before coding, go to power shell and type: 
+ * Before coding, go to power shell and type: npm install 
  * After type: npm install --save react react-dom @types/react @types/react-dom
  * This was written by Coco 
  */
@@ -43,7 +43,7 @@ export interface CombinedEvent {
   day: number;       // Which day it happened (1-31)
   year: number;      // Which year it happened (numeric)
   yearDisplay: string; // The year as displayed (may include BC/AD)
-  category: string;  // What type of event (Science, Politics, etc.)  
+  category: string[];  // What type of event (can have multiple categories)  
   source: 'api' | 'database'; // Where the event came from - internet or our database
   html?: string;     // HTML content with links (for API events)
   links?: Array<{    // Links to Wikipedia and other sources (for API events)
@@ -101,6 +101,60 @@ function MainApp() {
     return text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
   };
 
+  // Function to extract a proper title from event text, handling abbreviations
+  const extractTitle = (text: string): string => {
+    // Common abbreviations that end with period
+    const abbreviations = ['U.S.', 'U.K.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.', 'Sr.', 'Jr.', 'Inc.', 'Ltd.', 'Corp.', 'vs.', 'etc.', 'e.g.', 'i.e.', 'a.m.', 'p.m.', 'A.D.', 'B.C.'];
+    
+    // Look for sentence endings: period followed by space and capital letter
+    // This pattern indicates a real sentence boundary
+    const sentenceEndRegex = /\.\s+[A-Z]/;
+    const match = text.match(sentenceEndRegex);
+    
+    if (match && match.index !== undefined) {
+      const sentenceEndIndex = match.index + 1; // +1 to include the period
+      const potentialTitle = text.substring(0, sentenceEndIndex).trim();
+      
+      // Check if this looks like a real sentence (not just an abbreviation)
+      // If the text before the period is very short (like "U.S."), continue searching
+      const textBeforePeriod = potentialTitle.substring(0, potentialTitle.length - 1).trim();
+      const isLikelyAbbreviation = abbreviations.some(abbr => 
+        textBeforePeriod === abbr.replace('.', '') || 
+        textBeforePeriod.endsWith(' ' + abbr.replace('.', '')) ||
+        potentialTitle === abbr
+      );
+      
+      // If it's a reasonable length and not just an abbreviation, use it
+      if (!isLikelyAbbreviation && potentialTitle.length > 10 && potentialTitle.length <= 200) {
+        return potentialTitle;
+      }
+      
+      // If we found an abbreviation, look for the next sentence ending
+      const nextMatch = text.substring(sentenceEndIndex + 1).match(sentenceEndRegex);
+      if (nextMatch && nextMatch.index !== undefined) {
+        const nextSentenceEnd = sentenceEndIndex + 1 + nextMatch.index + 1;
+        const nextTitle = text.substring(0, nextSentenceEnd).trim();
+        if (nextTitle.length > 10 && nextTitle.length <= 200) {
+          return nextTitle;
+        }
+      }
+    }
+    
+    // Fallback: look for any period+space pattern, but skip if it's clearly an abbreviation
+    const simplePeriodIndex = text.indexOf('. ');
+    if (simplePeriodIndex > 0 && simplePeriodIndex <= 200) {
+      const candidate = text.substring(0, simplePeriodIndex + 1).trim();
+      // Check if it's not just a common abbreviation
+      const isAbbreviation = abbreviations.some(abbr => candidate === abbr || candidate.endsWith(' ' + abbr));
+      if (!isAbbreviation && candidate.length > 10) {
+        return candidate;
+      }
+    }
+    
+    // Final fallback: use first 150 characters
+    return text.length > 150 ? text.substring(0, 150).trim() + '...' : text.trim();
+  };
+
   // List of all month names for the dropdown menu
   const months = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -108,7 +162,194 @@ function MainApp() {
   ];
 
   // List of all event categories for the dropdown menu
-  const categories = ['all', 'Science', 'Politics & Government', 'History', 'Technology', 'Arts', 'Economics'];
+  const categories = ['all', 'History', 'Politics', 'Science', 'Economics', 'Military', 'People', 'Technology'];
+  
+  // Keyword-based categorization system
+  const categoryKeywords: Record<string, string[]> = {
+    Politics: [
+      "government", "state", "nation", "republic", "empire", "kingdom", "monarchy", "dynasty",
+      "parliament", "congress", "senate", "assembly", "cabinet", "ministry", "council", "judiciary",
+      "court", "chancellor", "prime minister", "president", "governor", "mayor", "diplomat",
+      "ambassador", "constitution", "charter", "charters", "chartered", "chartering",
+      "decree", "decrees", "decreed", "decreeing",
+      "proclamation", "treaty", "alliance",
+      "pact", "agreement", "resolution", "legislation", "law", "amendment", "bill", "referendum",
+      "plebiscite",
+      "mandate", "mandates", "mandated", "mandating",
+      "sovereignty", "jurisdiction", "citizenship", "immigration",
+      "borders",
+      "annexation", "secession", "independence", "unification", "dissolution",
+      "federation", "confederation", "colony", "colonialism", "decolonization", "imperialism",
+      "nationalism", "socialism", "communism", "capitalism", "liberalism", "conservatism",
+      "fascism", "anarchism", "populism", "authoritarianism", "totalitarianism", "democracy",
+      "oligarchy", "aristocracy", "bureaucracy",
+      "reform", "reforms", "reformed", "reforming",
+      "revolution", "coup", "uprising",
+      "rebellion",
+      "protest", "protests", "protested", "protesting",
+      "demonstration", "civil unrest", "civil rights", "human rights",
+      "advocacy", "activism",
+      "campaign", "campaigns", "campaigned", "campaigning",
+      "corruption", "scandal", "censorship", "propaganda",
+      "sanction", "sanctions", "sanctioned", "sanctioning",
+      "embargo", "embargoes", "embargoed", "embargoing",
+      "diplomacy", "negotiation",
+      "veto", "vetoes", "vetoed", "vetoing",
+      "executive order", "policy",
+      "governance", "regulation", "oversight", "transparency",
+      "election", "inauguration",
+      "impeachment", "succession",
+      "taxation",
+      "budget", "budgets", "budgeted", "budgeting",
+      "welfare", "public service", "statecraft",
+      "geopolitics"
+    ],
+  
+    Science: [
+      "experiment", "experiments", "experimented", "experimenting",
+      "discovery",
+      "hypothesis", "theory", "law",
+      "observation", "measurement",
+      "analysis", "calculation", "classification", "modeling", "simulation", "prediction",
+      "research", "researches", "researched", "researching",
+      "publication", "peer review", "dataset", "laboratory", "fieldwork", "specimen",
+      "sample", "microscope", "telescope", "particle", "atom", "molecule", "DNA", "RNA", "genome",
+      "cell", "organism", "species", "evolution", "adaptation", "biodiversity", "ecology",
+      "climate", "climate change", "atmosphere", "geology", "tectonics", "volcano", "earthquake",
+      "magnetism", "radiation", "energy", "quantum", "relativity", "thermodynamics", "gravity",
+      "motion", "wave", "optics", "astronomy", "supernova", "nebula", "galaxy", "black hole",
+      "comet", "asteroid", "meteor", "chemistry", "reaction", "compound", "solution", "physics",
+      "electronics", "kinetics", "biology", "anatomy", "physiology", "botany", "zoology",
+      "microbiology", "genetics", "biotechnology", "medicine", "vaccine", "drug", "diagnosis",
+      "treatment", "pathology", "epidemiology", "statistics", "mathematics", "algebra", "calculus",
+      "geometry", "number theory", "robotics", "nanotechnology", "materials science", "engineering",
+      "computing", "algorithms", "data science", "ecology", "conservation", "renewable energy",
+      "planetary science", "space exploration", "biophysics", "astrobiology"
+    ],
+  
+    Economics: [
+      "economy", "economic policy", "recession", "depression", "inflation", "hyperinflation",
+      "deflation", "stagflation", "unemployment", "labor", "wages", "minimum wage", "living wage",
+      "capital", "investment",
+      "trade", "trades", "traded", "trading",
+      "exports", "imports", "tariffs", "subsidies", "market",
+      "supply", "demand", "price", "competition", "monopoly", "oligopoly", "free market",
+      "capitalism", "social market", "privatization", "nationalization", "finance", "banking",
+      "interest rates", "credit", "debt", "bond", "stock market", "crash", "boom", "GDP",
+      "industrialization", "globalization", "consumerism", "commerce", "entrepreneurship",
+      "corporation", "business", "profit", "loss", "bankruptcy", "inflation rate", "exchange rate",
+      "currency", "trade route", "merchants", "economist", "economic growth", "fiscal policy",
+      "monetary policy", "central bank", "Wall Street", "commercial trade", "economic sanctions",
+      "import restrictions", "export controls", "taxation", "budget deficit", "surplus",
+      "economic collapse", "economic recovery"
+    ],
+  
+    Military: [
+      "war",
+      "battle", "battles", "battled", "battling",
+      "conflict",
+      "campaign", "campaigns", "campaigned", "campaigning",
+      "operation", "mission",
+      "assault", "assaults", "assaulted", "assaulting",
+      "offensive", "defensive",
+      "raid", "raids", "raided", "raiding",
+      "siege",
+      "ambush", "ambushes", "ambushed", "ambushing",
+      "skirmish", "skirmishes", "skirmished", "skirmishing",
+      "invasion", "occupation", "liberation",
+      "retreat", "retreats", "retreated", "retreating",
+      "surrender", "surrenders", "surrendered", "surrendering",
+      "armistice", "ceasefire", "truce", "peace treaty",
+      "strategy", "tactics", "maneuver", "formation", "mobilization", "conscription", "enlistment",
+      "deployment", "logistics", "supply lines", "fortifications", "trenches", "bunkers",
+      "naval fleet", "army", "infantry", "cavalry", "artillery", "armored division", "marines",
+      "navy", "air force", "special forces", "paratroopers", "commandos", "guerrilla",
+      "insurgency", "counterinsurgency", "militia", "mercenary", "general", "commander",
+      "colonel", "captain", "lieutenant", "sergeant", "soldier", "veteran", "intelligence",
+      "reconnaissance",
+      "espionage",
+      "sabotage", "sabotages", "sabotaged", "sabotaging",
+      "codebreaking", "encryption", "radar", "sonar",
+      "missile", "rocket", "bomb", "bombs", "bombed", "bombing",
+      "ammunition", "firearm", "rifle", "pistol", "tank", "drone",
+      "helicopter", "aircraft", "jet", "fighter", "submarine", "battleship", "carrier",
+      "chemical weapons", "biological weapons", "nuclear weapons", "wartime production",
+      "demilitarization", "war crimes", "tribunal", "occupation forces"
+    ],
+  
+    People: [
+      "birth", "death", "burial", "coronation", "inauguration", "marriage", "divorce",
+      "ascension", "abdication", "exile", "pilgrimage", "biography", "legacy", "influence",
+      "childhood", "adulthood", "career", "retirement", "achievements", "accomplishments",
+      "discoveries", "creations", "awards", "honors", "recognition", "leadership", "presidency",
+      "kingship", "rulership", "command",
+      "activism", "advocacy",
+      "protest", "protests", "protested", "protesting",
+      "speech",
+      "philosophy", "teachings", "writings", "publication", "invention", "exploration", "voyage",
+      "expedition", "migration", "settlement", "education", "mentorship", "training",
+      "apprenticeship", "scandal", "downfall", "assassination", "illness", "recovery",
+      "humanitarian work", "charity", "scholarship",
+      "debate", "debates", "debated", "debating",
+      "collaboration", "rivalry",
+      "partnership", "inspiration", "innovation", "resistance", "reform", "reforms", "reformed", "reforming",
+      "creativity", "authorship", "performance", "composition", "breakthrough", "public service"
+    ],
+  
+    Technology: [
+      "invention", "innovation", "breakthrough", "prototype", "patent", "blueprint",
+      "architecture", "system", "hardware", "software", "firmware", "algorithm", "code",
+      "programming", "computing", "processors", "chip", "microchip", "semiconductor",
+      "transistor", "circuit", "motherboard", "memory", "storage", "database", "networking",
+      "ethernet", "wireless", "radio", "telecommunications", "satellite", "fiber optics",
+      "robotics", "automation", "AI", "machine learning", "deep learning", "neural networks",
+      "blockchain", "cybersecurity", "encryption", "cryptography", "quantum computing",
+      "virtual reality", "augmented reality", "sensors", "IoT", "drone", "industrial machinery",
+      "engines", "turbines", "generators", "battery", "electricity", "power grid", "solar panels",
+      "renewable energy", "nuclear energy", "automotive technology", "transportation",
+      "railway", "aviation", "aerospace", "spacecraft", "rocket", "lander", "rover", "telescope",
+      "medical devices", "MRI", "X-ray", "surgical robots", "bioengineering", "nanotechnology",
+      "manufacturing", "3D printing", "fabrication",
+      "design", "designs", "designed", "designing",
+      "engineering", "user interface",
+      "operating system", "mobile device", "smartphone", "computer", "console", "internet",
+      "web", "cloud computing",
+      "deployment",
+      "release", "releases", "released", "releasing",
+      "upgrade", "upgrades", "upgraded", "upgrading",
+      "versioning", "maintenance"
+    ]
+  };
+
+  // Function to automatically categorize events based on keywords
+  const categorizeEvent = (title: string, description: string): string[] => {
+    const text = normalizeForSearch(title + ' ' + description);
+    const matchedCategories: string[] = [];
+    
+    // Check each category's keywords
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      // Check if any keyword from this category appears in the text
+      if (keywords.some(keyword => {
+        const normalizedKeyword = normalizeForSearch(keyword);
+        // Use word boundary matching to avoid substring false positives
+        // For multi-word keywords, check if the phrase appears
+        // For single words, use word boundaries
+        if (normalizedKeyword.includes(' ')) {
+          // Multi-word keyword: check if the phrase appears
+          return text.includes(normalizedKeyword);
+        } else {
+          // Single word: use word boundary regex to match whole words only
+          const wordBoundaryRegex = new RegExp(`\\b${normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          return wordBoundaryRegex.test(text);
+        }
+      })) {
+        matchedCategories.push(category);
+      }
+    }
+    
+    // If no categories matched, default to 'History'
+    return matchedCategories.length > 0 ? matchedCategories : ['History'];
+  };
 
   // This function fetches all events for the selected month/day (without filters) for bounds calculation
   const fetchAllEventsForDate = useCallback(async () => {
@@ -120,18 +361,12 @@ function MainApp() {
         const apiEvents = await fetchHistoricalEvents(selectedMonth, selectedDay);
         
         const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => {
-          // Extract a clean title - find first complete sentence (period followed by space)
-          // This handles cases like "U.S." or "Dr." where period isn't a sentence end
-          let title: string;
-          const sentenceEndIndex = event.text.indexOf('. ');
-          if (sentenceEndIndex > 0 && sentenceEndIndex <= 200) {
-            // Use first sentence if it ends with period+space and is reasonable length
-            title = event.text.substring(0, sentenceEndIndex + 1).trim();
-          } else {
-            // If no sentence ending found or too long, use first 150 chars
-            title = event.text.length > 150 ? event.text.substring(0, 150).trim() + '...' : event.text.trim();
-          }
+          // Extract a clean title using smart sentence detection
+          const title = extractTitle(event.text);
           const numericYear = parseYear(event.year);
+          
+          // Automatically categorize based on keywords
+          const autoCategories = categorizeEvent(title, event.text);
           
           return {
             id: `api-${event.year}-${event.text.substring(0, 20).replace(/\s/g, '-')}`,
@@ -141,7 +376,7 @@ function MainApp() {
             day: selectedDay,
             year: numericYear,
             yearDisplay: event.year,
-            category: 'History',
+            category: autoCategories,
             source: 'api' as const,
             html: event.html,
             links: event.links
@@ -154,17 +389,25 @@ function MainApp() {
       if (showDbEvents) {
         const local = listApprovedLocal()
           .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay));
-        const formatted: CombinedEvent[] = local.map(e => ({
-          id: e.id,
-          title: e.title,
-          description: e.description,
-          month: e.month,
-          day: e.day,
-          year: e.year,
-          yearDisplay: e.year.toString(),
-          category: e.category,
-          source: 'database',
-        }));
+        const formatted: CombinedEvent[] = local.map(e => {
+          // Convert single category string to array, and also apply auto-categorization
+          const existingCategory = e.category && e.category !== 'History' ? [e.category] : [];
+          const autoCategories = categorizeEvent(e.title, e.description);
+          // Combine existing category with auto-categorized ones, removing duplicates
+          const allCategories = Array.from(new Set([...existingCategory, ...autoCategories]));
+          
+          return {
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            month: e.month,
+            day: e.day,
+            year: e.year,
+            yearDisplay: e.year.toString(),
+            category: allCategories.length > 0 ? allCategories : ['History'],
+            source: 'database',
+          };
+        });
         allEvents.push(...formatted);
       }
 
@@ -203,19 +446,13 @@ function MainApp() {
         
         // Convert the internet events to our standard format
         const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => {
-          // Extract a clean title - find first complete sentence (period followed by space)
-          // This handles cases like "U.S." or "Dr." where period isn't a sentence end
-          let title: string;
-          const sentenceEndIndex = event.text.indexOf('. ');
-          if (sentenceEndIndex > 0 && sentenceEndIndex <= 200) {
-            // Use first sentence if it ends with period+space and is reasonable length
-            title = event.text.substring(0, sentenceEndIndex + 1).trim();
-          } else {
-            // If no sentence ending found or too long, use first 150 chars
-            title = event.text.length > 150 ? event.text.substring(0, 150).trim() + '...' : event.text.trim();
-          }
+          // Extract a clean title using smart sentence detection
+          const title = extractTitle(event.text);
           // Parse year - handle formats like "42 BC", "1969", etc.
           const numericYear = parseYear(event.year);
+          
+          // Automatically categorize based on keywords
+          const autoCategories = categorizeEvent(title, event.text);
           
           return {
             id: `api-${event.year}-${event.text.substring(0, 20).replace(/\s/g, '-')}`, // Create a unique ID
@@ -225,7 +462,7 @@ function MainApp() {
             day: selectedDay, // Use the day user selected
             year: numericYear, // Convert year to a number for sorting/filtering
             yearDisplay: event.year, // Keep original year format for display
-            category: 'History', // All API events are categorized as History
+            category: autoCategories, // Automatically categorized based on keywords
             source: 'api' as const, // Mark this as coming from the internet
             html: event.html, // Store HTML content with links
             links: event.links // Store links array
@@ -239,7 +476,7 @@ function MainApp() {
         }
         // If user selected a specific category, only keep events from that category
         if (selectedCategory !== 'all') {
-          filteredApiEvents = filteredApiEvents.filter(e => e.category === selectedCategory);
+          filteredApiEvents = filteredApiEvents.filter(e => e.category.includes(selectedCategory));
         }
         // Keyword search: only works if both month and day are selected
         if (searchKeywords.trim()) {
@@ -276,8 +513,7 @@ function MainApp() {
       if (showDbEvents) {
         let local = listApprovedLocal()
           .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay))
-          .filter(e => (searchYear ? e.year === parseInt(searchYear) : true))
-          .filter(e => (selectedCategory !== 'all' ? e.category === selectedCategory : true));
+          .filter(e => (searchYear ? e.year === parseInt(searchYear) : true));
         
         // Keyword search: only works if both month and day are selected
         if (searchKeywords.trim()) {
@@ -308,18 +544,33 @@ function MainApp() {
           );
         }
         
-        const formatted: CombinedEvent[] = local.map(e => ({
-          id: e.id,
-          title: e.title,
-          description: e.description,
-          month: e.month,
-          day: e.day,
-          year: e.year,
-          yearDisplay: e.year.toString(), // Use numeric year as display for database events
-          category: e.category,
-          source: 'database',
-        }));
-        combinedEvents.push(...formatted);
+        const formatted: CombinedEvent[] = local.map(e => {
+          // Convert single category string to array, and also apply auto-categorization
+          const existingCategory = e.category && e.category !== 'History' ? [e.category] : [];
+          const autoCategories = categorizeEvent(e.title, e.description);
+          // Combine existing category with auto-categorized ones, removing duplicates
+          const allCategories = Array.from(new Set([...existingCategory, ...autoCategories]));
+          
+          return {
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            month: e.month,
+            day: e.day,
+            year: e.year,
+            yearDisplay: e.year.toString(), // Use numeric year as display for database events
+            category: allCategories.length > 0 ? allCategories : ['History'],
+            source: 'database',
+          };
+        });
+        
+        // Filter by category after mapping (so we can check the array)
+        let filteredLocal = formatted;
+        if (selectedCategory !== 'all') {
+          filteredLocal = filteredLocal.filter(e => e.category.includes(selectedCategory));
+        }
+        
+        combinedEvents.push(...filteredLocal);
       }
 
       // Sort all events by year (newest first) and save them
@@ -592,12 +843,14 @@ function MainApp() {
                   {/* Event title - full width */}
                   <h4 className="text-xl font-semibold text-white mb-3 leading-relaxed break-words whitespace-normal overflow-visible">{event.title}</h4>
                   {/* Badges showing category and source */}
-                  <div className="flex gap-2">
-                    {/* Category badge */}
-                    <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium flex items-center">
-                      <Tag className="w-3 h-3 mr-1" />
-                      {event.category}
-                    </span>
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Category badges - show all categories */}
+                    {event.category.map((cat, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium flex items-center">
+                        <Tag className="w-3 h-3 mr-1" />
+                        {cat}
+                      </span>
+                    ))}
                     {/* Source badge - different colors for API vs database */}
                     <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center ${
                       event.source === 'api'
