@@ -22,9 +22,9 @@ export function TimelineSlider({
 
   // Calculate bounds based on events for the selected month/day
   const calculateBounds = useCallback(() => {
-    // Filter events for the selected month and day
+    // Filter events for the selected month and day (0 means all)
     const relevantEvents = events.filter(
-      (e) => e.month === selectedMonth && e.day === selectedDay
+      (e) => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay)
     );
 
     if (relevantEvents.length === 0) {

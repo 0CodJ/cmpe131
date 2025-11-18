@@ -139,7 +139,7 @@ function MainApp() {
       // Fetch all database events for the selected month and day
       if (showDbEvents) {
         const local = listApprovedLocal()
-          .filter(e => e.month === selectedMonth && e.day === selectedDay);
+          .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay));
         const formatted: CombinedEvent[] = local.map(e => ({
           id: e.id,
           title: e.title,
@@ -174,9 +174,16 @@ function MainApp() {
         const apiEvents = await fetchHistoricalEvents(selectedMonth, selectedDay);
         
         // Check if we got sample data (API was blocked)
-        if (apiEvents.length > 0 && apiEvents[0].text.includes('Apollo 11')) {
-          setApiBlocked(true);
+        // Only check for blocking if we have valid month/day selections (not both blank)
+        // When both are blank, we might get no results which shouldn't be considered blocking
+        if (selectedMonth !== 0 && selectedDay !== 0) {
+          if (apiEvents.length > 0 && apiEvents[0].text.includes('Apollo 11')) {
+            setApiBlocked(true);
+          } else {
+            setApiBlocked(false);
+          }
         } else {
+          // When selections are blank, don't consider it as blocking
           setApiBlocked(false);
         }
         
@@ -223,7 +230,7 @@ function MainApp() {
       // If user wants to see events from our custom store (approved only)
       if (showDbEvents) {
         const local = listApprovedLocal()
-          .filter(e => e.month === selectedMonth && e.day === selectedDay)
+          .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay))
           .filter(e => (searchYear ? e.year === parseInt(searchYear) : true))
           .filter(e => (selectedCategory !== 'all' ? e.category === selectedCategory : true));
         const formatted: CombinedEvent[] = local.map(e => ({
@@ -332,10 +339,15 @@ function MainApp() {
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Month</label>
               <select
-                value={selectedMonth} // Show currently selected month
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))} // Update when user changes selection
+                value={selectedMonth === 0 ? '' : selectedMonth} // Show currently selected month or blank
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedMonth(value === '' ? 0 : parseInt(value));
+                }} // Update when user changes selection
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               >
+                {/* Blank option */}
+                <option value=""></option>
                 {/* Create an option for each month */}
                 {months.map((month, index) => (
                   <option key={month} value={index + 1}>
@@ -349,10 +361,15 @@ function MainApp() {
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Day</label>
               <select
-                value={selectedDay} // Show currently selected day
-                onChange={(e) => setSelectedDay(parseInt(e.target.value))} // Update when user changes selection
+                value={selectedDay === 0 ? '' : selectedDay} // Show currently selected day or blank
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedDay(value === '' ? 0 : parseInt(value));
+                }} // Update when user changes selection
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               >
+                {/* Blank option */}
+                <option value=""></option>
                 {/* Create options for days 1-31 */}
                 {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                   <option key={day} value={day}>
@@ -436,19 +453,21 @@ function MainApp() {
                 <span className="text-slate-300">Custom Events</span>
               </label>
             </div>
-            {/* Display what date we're currently searching */}
-            <div className="text-center">
-              <p className="text-slate-400">
-                Showing events for{' '}
-                <span className="text-blue-400 font-semibold">
-                  {months[selectedMonth - 1]} {selectedDay} {/* Show selected month and day */}
-                </span>
-                {/* If user specified a year, show it too */}
-                {searchYear && (
-                  <span className="text-blue-400 font-semibold">, {searchYear}</span>
-                )}
-              </p>
-            </div>
+            {/* Display what date we're currently searching - only show if both month and day are selected */}
+            {selectedMonth !== 0 && selectedDay !== 0 && (
+              <div className="text-center">
+                <p className="text-slate-400">
+                  Showing events for{' '}
+                  <span className="text-blue-400 font-semibold">
+                    {months[selectedMonth - 1]} {selectedDay}
+                  </span>
+                  {/* If user specified a year, show it too */}
+                  {searchYear && (
+                    <span className="text-blue-400 font-semibold">, {searchYear}</span>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
