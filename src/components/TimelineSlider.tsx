@@ -303,7 +303,7 @@ export function TimelineSlider({
       </div>
       
       {/* Timeline container */}
-      <div className="relative mb-2 mt-8">
+      <div className="relative mb-2 mt-16">
         {/* Track background - full timeline range */}
         <div
           ref={sliderRef}

@@ -42,8 +42,8 @@ export function AddEventForm({
     "December",
   ];
 
-  const categories = [
-    "History",
+  const categories = [ //specifying the categories of events that can be added 
+    "General",
     "Politics",
     "Science",
     "Economics",

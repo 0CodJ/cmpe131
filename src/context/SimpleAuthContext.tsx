@@ -52,7 +52,7 @@ export function SimpleAuthProvider({ children }: { children: React.ReactNode }) 
     // Seed default admin on first run
     const users = loadUsers();
     if (users.length === 0) {
-      const admin: SimpleUser = {
+      const admin: SimpleUser = { 
         id: crypto.randomUUID(),
         email: 'admin@example.com',
         password: 'admin123',

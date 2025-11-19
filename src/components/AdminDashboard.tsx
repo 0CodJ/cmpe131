@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSimpleAuth } from '../context/SimpleAuthContext';
-import { approveEvent, listPending as listPendingEvents } from '../lib/localEvents';
+import { approveEvent, denyEvent, listPending as listPendingEvents } from '../lib/localEvents';
 
 type PendingUser = {
   id: string;
@@ -40,6 +40,11 @@ export function AdminDashboard() {
 
   const approveEvt = async (eventId: string) => {
     approveEvent(eventId);
+    await fetchPending();
+  };
+
+  const denyEvt = async (eventId: string) => {
+    denyEvent(eventId);
     await fetchPending();
   };
 
@@ -89,8 +94,9 @@ export function AdminDashboard() {
                   <div className="text-white font-medium">{evt.title}</div>
                   <div className="text-slate-300 text-sm mb-2">{evt.description}</div>
                   <div className="text-xs text-slate-400 mb-3">{evt.month}/{evt.day}/{evt.year} • {evt.category}</div>
-                  <div className="text-right">
+                  <div className="flex justify-end gap-2">
                     <button onClick={() => approveEvt(evt.id)} className="px-3 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-white">Approve</button>
+                    <button onClick={() => denyEvt(evt.id)} className="px-3 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-white">Deny</button>
                   </div>
                 </div>
               ))}

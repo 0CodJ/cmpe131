@@ -1,15 +1,11 @@
-/** 
- * Before coding, go to power shell and type: npm install 
- * After type: npm install --save react react-dom @types/react @types/react-dom
- * This was written by Coco 
- */
-
-
 /**
  * React is used for UIs 
  * Lucide-react is used for icons
  * 
  */
+
+
+
 // Import React hooks - these let us manage data and respond to changes
 import { useState, useEffect, useCallback } from 'react';
 // Import icons from lucide-react library - these are the little pictures we use in the app
@@ -47,7 +43,7 @@ export interface CombinedEvent {
   source: 'api' | 'database'; // Where the event came from - internet or our database
   html?: string;     // HTML content with links (for API events)
   links?: Array<{    // Links to Wikipedia and other sources (for API events)
-    title: string;
+    title: string; 
     link: string;
   }>;
 }
@@ -162,7 +158,7 @@ function MainApp() {
   ];
 
   // List of all event categories for the dropdown menu
-  const categories = ['all', 'History', 'Politics', 'Science', 'Economics', 'Military', 'People', 'Technology'];
+  const categories = ['all', 'General', 'Politics', 'Science', 'Economics', 'Military', 'People', 'Technology'];
   
   // Keyword-based categorization system
   const categoryKeywords: Record<string, string[]> = {
@@ -347,8 +343,8 @@ function MainApp() {
       }
     }
     
-    // If no categories matched, default to 'History'
-    return matchedCategories.length > 0 ? matchedCategories : ['History'];
+    // If no categories matched, default to 'General'
+    return matchedCategories.length > 0 ? matchedCategories : ['General'];
   };
 
   // This function fetches all events for the selected month/day (without filters) for bounds calculation
@@ -391,7 +387,7 @@ function MainApp() {
           .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay));
         const formatted: CombinedEvent[] = local.map(e => {
           // Convert single category string to array, and also apply auto-categorization
-          const existingCategory = e.category && e.category !== 'History' ? [e.category] : [];
+          const existingCategory = e.category && e.category !== 'General' ? [e.category] : [];
           const autoCategories = categorizeEvent(e.title, e.description);
           // Combine existing category with auto-categorized ones, removing duplicates
           const allCategories = Array.from(new Set([...existingCategory, ...autoCategories]));
@@ -404,7 +400,7 @@ function MainApp() {
             day: e.day,
             year: e.year,
             yearDisplay: e.year.toString(),
-            category: allCategories.length > 0 ? allCategories : ['History'],
+            category: allCategories.length > 0 ? allCategories : ['General'],
             source: 'database',
           };
         });
@@ -546,7 +542,7 @@ function MainApp() {
         
         const formatted: CombinedEvent[] = local.map(e => {
           // Convert single category string to array, and also apply auto-categorization
-          const existingCategory = e.category && e.category !== 'History' ? [e.category] : [];
+          const existingCategory = e.category && e.category !== 'General' ? [e.category] : [];
           const autoCategories = categorizeEvent(e.title, e.description);
           // Combine existing category with auto-categorized ones, removing duplicates
           const allCategories = Array.from(new Set([...existingCategory, ...autoCategories]));
@@ -559,7 +555,7 @@ function MainApp() {
             day: e.day,
             year: e.year,
             yearDisplay: e.year.toString(), // Use numeric year as display for database events
-            category: allCategories.length > 0 ? allCategories : ['History'],
+            category: allCategories.length > 0 ? allCategories : ['General'],
             source: 'database',
           };
         });

@@ -18,7 +18,7 @@ export interface ApiResponse {
   };
 }
 
-// Sample data for when API is blocked
+// Sample data for when API is blocked or API events cannot be displayed.
 const getSampleEvents = (month: number, day: number): ApiHistoricalEvent[] => {
   const sampleEvents: ApiHistoricalEvent[] = [
     {
