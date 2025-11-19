@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom slider styles - completely hide the thumb and make bar clickable */
+.slider-thumb::-webkit-slider-thumb {
+  appearance: none;
+  height: 0;
+  width: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.slider-thumb::-webkit-slider-thumb:hover {
+  height: 0;
+  width: 0;
+  background: transparent;
+}
+
+.slider-thumb::-webkit-slider-thumb:active {
+  height: 0;
+  width: 0;
+  background: transparent;
+}
+
+.slider-thumb::-moz-range-thumb {
+  height: 0;
+  width: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.slider-thumb::-moz-range-thumb:hover {
+  height: 0;
+  width: 0;
+  background: transparent;
+}
+
+.slider-thumb::-moz-range-thumb:active {
+  height: 0;
+  width: 0;
+  background: transparent;
+}
+
+.slider-thumb::-webkit-slider-track {
+  background: transparent;
+  height: 32px; /* Make the clickable area taller */
+}
+
+.slider-thumb::-moz-range-track {
+  background: transparent;
+  height: 32px; /* Make the clickable area taller */
+  border: none;
+}
+
+/* Hide the default track */
+.slider-thumb::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 32px;
+}
