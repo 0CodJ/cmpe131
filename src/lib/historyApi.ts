@@ -1,3 +1,12 @@
+/*
+READ THIS FIRST: 
+This file is used to fetch historical events from the internet API.
+Following features this file does:
+- Fetches historical events from the internet API for a given month and day
+- Provides sample data for when API is blocked or API events cannot be displayed.
+*/
+
+// This defines the structure of the historical event data from the internet API
 export interface ApiHistoricalEvent {
   year: string;
   text: string;
@@ -55,6 +64,7 @@ const getSampleEvents = (month: number, day: number): ApiHistoricalEvent[] => {
   return sampleEvents;
 };
 
+// Fetches historical events from the internet API for a given month and day
 export const fetchHistoricalEvents = async (month: number, day: number): Promise<ApiHistoricalEvent[]> => {
   try {
     const response = await fetch(`https://history.muffinlabs.com/date/${month}/${day}`);

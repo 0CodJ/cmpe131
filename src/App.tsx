@@ -1,10 +1,24 @@
-/**
- * React is used for UIs 
- * Lucide-react is used for icons
- * 
- */
+/*
+READ THIS FIRST: 
+This is the main component that makes up the entire website.
+Following features this file does:
+- Fetches historical events from the internet API and the local database
+- Displays the historical events in a timeline
+- Allows users to search for events by keyword, category, and year
+- Allows users to add their own events to the database
+- Allows users to sign in and out of the website
+- Allows users to view the admin dashboard
+*/
 
-
+// React is used for UIs 
+// Lucide-react is used for icons
+// localEvents is used to store and manage events locally in the browser
+// historyApi is used to fetch historical events from the internet API
+// AddEventForm is used to add events to the database
+// SimpleAuthContext is used to manage authentication for supabase (but this is not working at the moment) 
+// AuthPanel is used to display the authentication panel
+// AdminDashboard is used to display the admin dashboard
+// TimelineSlider is used to display the timeline slider
 
 // Import React hooks - these let us manage data and respond to changes
 import { useState, useEffect, useCallback } from 'react';
@@ -51,32 +65,32 @@ export interface CombinedEvent {
  * 
  * @returns 
  */
-// This is the main component that makes up our entire app
+// This is the main component that makes up the entire website 
 function MainApp() {
-  // Create a list to store all the historical events we find
-  const [events, setEvents] = useState<CombinedEvent[]>([]);
-  // Store all events for the selected month/day (without year filter) for bounds calculation
-  const [allEventsForDate, setAllEventsForDate] = useState<CombinedEvent[]>([]);
-  // Keep track of whether we're currently loading data (showing spinner)
-  const [loading, setLoading] = useState(false);
-  // Store which month the user has selected (starts with current month)
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
-  // Store which day the user has selected (starts with current day)
-  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
-  // Store the year the user wants to search for (optional, starts empty)
-  const [searchYear, setSearchYear] = useState<string>('');
-  // Store which category of events to show (starts with 'all' to show everything)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  // Store keyword search text (optional, starts empty)
-  const [searchKeywords, setSearchKeywords] = useState<string>('');
-  // Store zoomed bounds from timeline slider
-  const [zoomedBounds, setZoomedBounds] = useState<{ minYear: number; maxYear: number } | null>(null);
-  // Whether to show events from the internet API (starts as true)
-  const [showApiEvents, setShowApiEvents] = useState(true);
-  // Whether to show events from our custom database (starts as true)
-  const [showDbEvents, setShowDbEvents] = useState(true);
-  // Track if API is blocked
-  const [apiBlocked, setApiBlocked] = useState(false);
+  
+  const [events, setEvents] = useState<CombinedEvent[]>([]); // Create a list to store all the historical events we find
+  
+  const [allEventsForDate, setAllEventsForDate] = useState<CombinedEvent[]>([]); // Store all events for the selected month/day (without year filter) for bounds calculation
+
+  const [loading, setLoading] = useState(false); // Keep track of whether we're currently loading data (showing spinner)
+  
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // Store which month the user has selected (starts with current month)
+  
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate()); // Store which day the user has selected (starts with current day)
+  
+  const [searchYear, setSearchYear] = useState<string>(''); // Store which year the user has selected (starts with empty string)
+ 
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');  // Store which category of events to show (starts with 'all' to show everything)
+
+  const [searchKeywords, setSearchKeywords] = useState<string>(''); // Store keyword search text (starts with empty string)
+
+  const [zoomedBounds, setZoomedBounds] = useState<{ minYear: number; maxYear: number } | null>(null); // Store zoomed bounds from timeline slider
+
+  const [showApiEvents, setShowApiEvents] = useState(true); // Whether to show events from the internet API (starts as true)
+  
+  const [showDbEvents, setShowDbEvents] = useState(true); // Whether to show events from our custom database (starts as true)
+  
+  const [apiBlocked, setApiBlocked] = useState(false); // Track if API is blocked
   
   
   // Helper function to parse year string (handles "42 BC", "1969", etc.)
@@ -91,15 +105,15 @@ function MainApp() {
     return numericYear;
   };
 
-  // Helper function to remove punctuation and normalize text for searching (only words)
+  // Helper function to remove punctuation causing errors in searching and normalize text for searching (only words)
   const normalizeForSearch = (text: string): string => {
-    // Remove all punctuation and keep only alphanumeric characters and spaces
-    return text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    return text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();// Remove all punctuation and keep only alphanumeric characters and spaces
   };
 
   // Function to extract a proper title from event text, handling abbreviations
   const extractTitle = (text: string): string => {
-    // Common abbreviations that end with period
+
+    // Common abbreviations that end with period. So the code below will not treat them as the end of a sentence unless it is at the very end of the string.
     const abbreviations = ['U.S.', 'U.K.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.', 'Sr.', 'Jr.', 'Inc.', 'Ltd.', 'Corp.', 'vs.', 'etc.', 'e.g.', 'i.e.', 'a.m.', 'p.m.', 'A.D.', 'B.C.'];
     
     // Look for sentence endings: period followed by space and capital letter
@@ -147,7 +161,7 @@ function MainApp() {
       }
     }
     
-    // Final fallback: use first 150 characters
+    // This is a fallback to ensure the title is not too long. 
     return text.length > 150 ? text.substring(0, 150).trim() + '...' : text.trim();
   };
 

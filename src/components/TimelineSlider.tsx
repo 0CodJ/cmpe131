@@ -1,7 +1,21 @@
+/*
+READ THIS FIRST: 
+This component is for the timeline slider that allows users to navigate through history by dragging a slider across a visual timeline.
+Following features this file does:
+- Displays the timeline slider
+- Allows users to zoom in and out of the timeline
+- Allows users to jump to a specific year
+- Allows users to see the past and present labels
+- Allows users to see the year labels above the bars
+- User can click on a blue vertical bar to jump to a specific year 
+*/
+
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import type { CombinedEvent } from '../App';
 
+
+//This is the interface that defines the information this component will receive from the parent component
 interface TimelineSliderProps {
   events: CombinedEvent[];
   selectedMonth: number;
@@ -11,6 +25,7 @@ interface TimelineSliderProps {
   onBoundsChange?: (bounds: { minYear: number; maxYear: number }) => void;
 }
 
+//This is the TimelineSlider component that displays the timeline slider and handles the zooming and dragging
 export function TimelineSlider({
   events,
   selectedMonth,
@@ -19,14 +34,14 @@ export function TimelineSlider({
   onYearChange,
   onBoundsChange,
 }: TimelineSliderProps) {
-  const sliderRef = useRef<HTMLDivElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [sliderYear, setSliderYear] = useState<number | null>(null);
-  const currentYearRef = useRef<number | null>(null);
+  const sliderRef = useRef<HTMLDivElement>(null); // Calculating click positions 
+  const [isDragging, setIsDragging] = useState(false); // tracks if the user is dragging the slider or not 
+  const [sliderYear, setSliderYear] = useState<number | null>(null); //Store selected year which will be displayed on the slider 
+  const currentYearRef = useRef<number | null>(null); // Store the current year, done in such a manner to reduce delay 
   const [zoomLevel, setZoomLevel] = useState<number>(0); // 0 = no zoom, positive = zoomed in, negative = zoomed out
   
-  // Zoom increments in years: [5, 10, 25, 50, 100, 200, 500]
-  const zoomIncrements = [5, 10, 25, 50, 100, 200, 250, 500];
+
+  const zoomIncrements = [5, 10, 25, 50, 100, 200, 250, 500]; // Zoom increments in years: [5, 10, 25, 50, 100, 200, 500]
 
   // Calculate bounds based on events for the selected month/day
   const calculateBounds = useCallback(() => {
@@ -35,8 +50,8 @@ export function TimelineSlider({
       (e) => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay)
     );
 
+    // If no events, use reasonable defaults
     if (relevantEvents.length === 0) {
-      // If no events, use reasonable defaults
       const currentYear = new Date().getFullYear();
       return {
         minYear: currentYear - 100,
@@ -44,23 +59,26 @@ export function TimelineSlider({
       };
     }
 
-    // Find the oldest year (left bound - how far into the past)
+    // left bound - how far into the past
     const years = relevantEvents.map((e) => e.year);
-    const minYear = Math.min(...years);
+    const minYear = Math.min(...years); // Find the oldest year (left bound - how far into the past)
+
     // Right bound is the present (current year)
     const currentYear = new Date().getFullYear();
-    const maxYear = currentYear;
+    const maxYear = currentYear; // Right bound is the present (current year) for simplicity 
 
     return { minYear, maxYear };
   }, [events, selectedMonth, selectedDay]);
 
+  //Calculate the base year range (no zoom applied)
   const baseBounds = calculateBounds();
   const { minYear: baseMinYear, maxYear: baseMaxYear } = baseBounds;
 
-  // Calculate zoomed bounds based on zoom level
-  // Zoom in (positive zoomLevel): reduces range by specific increments [5, 10, 25, 50, 100, 200, 500]
-  // Zoom out (negative zoomLevel): increases range but never exceeds base bounds
+  //This adjusts the year range based on the zoom level.
+  //Zoom should never exceed the base bounds so you can't zoom out beyond the origianl range of events or zoom in to the point the boundaries pass through each other 
   const calculateZoomedBounds = useCallback(() => {
+
+    //if zoom level is 0, return base bounds 
     if (zoomLevel === 0) {
       return { minYear: baseMinYear, maxYear: baseMaxYear };
     }
@@ -68,9 +86,10 @@ export function TimelineSlider({
     const centerYear = (baseMinYear + baseMaxYear) / 2;
     const baseRange = baseMaxYear - baseMinYear;
 
+    //This block is the zoom in function. This makes the range narrower by removing years from both boundaries (left side gets bigger, right side gets smaller)
+    //apply cumulative increments directly to bounds
     if (zoomLevel > 0) {
-      // Zoom in: apply cumulative increments directly to bounds
-      // Upper bound decreases by increment, lower bound increases by increment
+      
       let totalIncrement = 0;
       for (let i = 0; i < Math.min(zoomLevel, zoomIncrements.length); i++) {
         totalIncrement += zoomIncrements[i];
@@ -88,7 +107,9 @@ export function TimelineSlider({
       }
       
       return { minYear: newMinYear, maxYear: newMaxYear };
-    } else {
+    } 
+    //This block is the zoom out function. This makes the range wider by adding years to both boundaries (left side gets smaller, right side gets bigger)
+    else {
       // Zoom out: increase range but never exceed base bounds
       let totalIncrease = 0;
       for (let i = 0; i < Math.min(Math.abs(zoomLevel), zoomIncrements.length); i++) {
@@ -105,7 +126,7 @@ export function TimelineSlider({
     }
   }, [baseMinYear, baseMaxYear, zoomLevel]);
 
-  const { minYear, maxYear } = calculateZoomedBounds();
+  const { minYear, maxYear } = calculateZoomedBounds(); //Get the actual min/max years after applying zoom 
 
   // Notify parent component of zoomed bounds changes
   useEffect(() => {
@@ -274,17 +295,21 @@ export function TimelineSlider({
     }
   };
 
+  //Renders the timeline for users to see 
   return (
     <div className="w-full">
       <div className="flex items-center justify-between mb-10">
         <label className="block text-2xl font-medium text-slate-300">
           Year Selection
         </label>
-        {/* Zoom controls */}
+        {/* Zoom control section */}
         <div className="flex items-center gap-3">
+          {/* Display the current zoom increment text */}
           <span className="text-sm text-slate-400 font-medium">
             {getZoomText()}
           </span>
+
+          {/* Zoom out button */}
           <button
             onClick={handleZoomOut}
             className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-colors"
@@ -292,6 +317,8 @@ export function TimelineSlider({
           >
             <Minus className="w-5 h-5" />
           </button>
+
+          {/* Zoom in button */}
           <button
             onClick={handleZoomIn}
             className="p-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg border border-slate-600 transition-colors"
@@ -302,13 +329,13 @@ export function TimelineSlider({
         </div>
       </div>
       
-      {/* Timeline container */}
+      {/* Timeline slider section */}
       <div className="relative mb-2 mt-16">
         {/* Track background - full timeline range */}
         <div
           ref={sliderRef}
           className="slider-track relative h-12 bg-slate-700/50 rounded-lg cursor-pointer border border-slate-600"
-          onClick={handleTrackClick}
+          onClick={handleTrackClick} //click on track to jump to a year 
         >
           {/* Active range (between bounds) - where slider can move */}
           <div
@@ -324,6 +351,7 @@ export function TimelineSlider({
             className="absolute top-0 bottom-0 w-1 bg-red-500 z-10"
             style={{ left: '0%' }}
           >
+            {/* Year lable above the red bar */}
             <div className="absolute -top-7 left-1/2 transform -translate-x-1/2 text-xs font-semibold text-red-400 whitespace-nowrap bg-slate-900/90 px-2 py-0.5 rounded border border-red-500/50">
               {minYear}
             </div>
@@ -334,18 +362,19 @@ export function TimelineSlider({
             className="absolute top-0 bottom-0 w-1 bg-green-500 z-10"
             style={{ right: '0%' }}
           >
+            {/* Year lable above the green bar */}
             <div className="absolute -top-7 right-1/2 transform translate-x-1/2 text-xs font-semibold text-green-400 whitespace-nowrap bg-slate-900/90 px-2 py-0.5 rounded border border-green-500/50">
               {maxYear}
             </div>
           </div>
 
-          {/* Draggable handle - bar style */}
+          {/* Draggable handle, Vertical blue bar */}
           <div
             className="absolute top-0 bottom-0 transform -translate-x-1/2 w-3 bg-blue-500 shadow-lg cursor-grab active:cursor-grabbing z-20 border-2 border-blue-300 hover:bg-blue-400 hover:scale-x-125 transition-all rounded-sm"
             style={{ left: `${handlePosition}%` }}
             onMouseDown={handleMouseDown}
           >
-            {/* Year label above handle */}
+            {/* Year label above the blue bar */}
             <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 text-sm font-bold text-blue-200 whitespace-nowrap bg-blue-600/90 px-3 py-1.5 rounded-lg border-2 border-blue-400 shadow-lg">
               {sliderYear}
             </div>
