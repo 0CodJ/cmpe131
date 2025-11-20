@@ -26,7 +26,7 @@ The Parallel History Slider is a web application that uses React, TypeScript, Ta
 - **User Management**: Approve pending user registrations
 - **Event Moderation**: Review and manage all custom event submissions
 
-##Getting Started
+## Getting Started
 
 ### Prerequisites
 
