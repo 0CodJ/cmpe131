@@ -309,7 +309,7 @@ function MainApp() {
     "soldier", "sonar", "special forces", "strategy", "submarine",
     "supply lines",
     "surrender", "surrendered", "surrendering", "surrenders",
-    "tank", "tactics", "trenches", "tribunal", "truce",
+    "tank", "tactics", "terrorist ", "terrorists", "trenches", "tribunal", "truce",
     "veteran",
     "war", "war crimes", "wartime production"
   ],
