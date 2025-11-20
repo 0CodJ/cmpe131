@@ -41,6 +41,10 @@ export function AddEventForm({
   const [loading, setLoading] = useState(false);
   //current user from auth context 
   const { profile } = useSimpleAuth();
+  //key to reset form inputs
+  const [formKey, setFormKey] = useState(0);
+  //year validation error message
+  const [yearError, setYearError] = useState<string>('');
   //initial form data using defaults or the current date 
   const [formData, setFormData] = useState({ 
     title: "",
@@ -89,6 +93,29 @@ export function AddEventForm({
         alert("Please sign in to add an event.");
         return;
       }
+      
+      // Check if user is approved by admin
+      if (!profile.approved) {
+        alert("Your account needs to be approved by an admin before you can add events.");
+        setLoading(false);
+        return;
+      }
+      
+      // Validate year: must be a valid integer
+      if (!Number.isInteger(formData.year) || isNaN(formData.year)) {
+        alert("Please enter a valid year (e.g., 1969 or -500 for BC dates).");
+        setLoading(false);
+        return;
+      }
+      
+      // Validate year: cannot be in the future
+      const currentYear = new Date().getFullYear();
+      if (formData.year > currentYear) {
+        alert(`Year cannot be later than ${currentYear}. Please enter a valid year.`);
+        setLoading(false);
+        return;
+      }
+      
       // Save as pending approval in local storage (admins will approve)
       addEvent({
         ...formData,
@@ -103,6 +130,8 @@ export function AddEventForm({
         year: new Date().getFullYear(), // set the year to the current year
         category: "General", // set the category to the default category or the general category
       });
+      setYearError(''); // clear any year validation error
+      setFormKey(prev => prev + 1); // increment form key to reset uncontrolled inputs
       setIsOpen(false); // close the add event form
       onEventAdded(); // call the onEventAdded function to update the events list
     } 
@@ -157,8 +186,19 @@ export function AddEventForm({
             {/*text display if the user clicks the button and is not signed in*/}  
             Please sign in to add events.
           </div>
+        ) : !profile.approved ? (
+          <div className="p-6 text-slate-300">
+            {/*text display if the user is signed in but not approved yet*/}
+            <div className="bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4">
+              <h3 className="text-yellow-300 font-semibold mb-2">Account Pending Approval</h3>
+              <p className="text-slate-300">
+                Your account needs to be approved by an administrator before you can add custom events. 
+                Please wait for an admin to review your account.
+              </p>
+            </div>
+          </div>
         ) : (
-          //if the user is signed in, show the form fields 
+          //if the user is signed in and approved, show the form fields 
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
 
             {/* This component is for the title of the event */} 
@@ -249,18 +289,53 @@ export function AddEventForm({
               {/* This component is for the year of the event */} 
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Year *
+                  Year * (negative for BC)
                 </label>
                 <input
-                  type="number"
+                  key={formKey}
+                  type="text"
                   required
-                  value={formData.year}
-                  onChange={(e) =>
-                    setFormData({ ...formData, year: parseInt(e.target.value) })
-                  }
-                  className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                  placeholder="e.g., 1969"
+                  defaultValue={formData.year === 0 ? '' : formData.year}
+                  onFocus={() => setYearError('')}
+                  onBlur={(e) => {
+                    const value = e.target.value.trim();
+                    
+                    // Check if empty or invalid
+                    if (value === '' || value === '-') {
+                      setYearError('Please enter a valid year.');
+                      setFormData({ ...formData, year: new Date().getFullYear() });
+                      return;
+                    }
+                    
+                    const parsed = parseInt(value);
+                    
+                    // Check if not a valid integer
+                    if (isNaN(parsed) || value !== parsed.toString()) {
+                      setYearError('Please enter a valid year (e.g., 1969 or -500 for BC dates).');
+                      setFormData({ ...formData, year: new Date().getFullYear() });
+                      return;
+                    }
+                    
+                    // Check if future year
+                    const currentYear = new Date().getFullYear();
+                    if (parsed > currentYear) {
+                      setYearError(`Year cannot be later than ${currentYear}.`);
+                      setFormData({ ...formData, year: currentYear });
+                      return;
+                    }
+                    
+                    // Valid year
+                    setYearError('');
+                    setFormData({ ...formData, year: parsed });
+                  }}
+                  className={`w-full px-4 py-3 bg-slate-700 border rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${
+                    yearError ? 'border-red-500' : 'border-slate-600'
+                  }`}
+                  placeholder="e.g. 1969 or -500"
                 />
+                {yearError && (
+                  <p className="text-red-400 text-sm mt-2">{yearError}</p>
+                )}
               </div>
             </div>
 
@@ -296,8 +371,8 @@ export function AddEventForm({
               </button>
               <button
                 type="submit"
-                disabled={loading}
-                className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 text-white rounded-lg transition font-medium"
+                disabled={loading || !!yearError}
+                className="flex-1 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-500/50 disabled:cursor-not-allowed text-white rounded-lg transition font-medium"
               >
                 {loading ? "Adding..." : "Add Event"}
               </button>

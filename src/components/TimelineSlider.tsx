@@ -21,6 +21,7 @@ interface TimelineSliderProps {
   selectedMonth: number;
   selectedDay: number;
   searchYear: string;
+  selectedCategory?: string;
   onYearChange: (year: string) => void;
   onBoundsChange?: (bounds: { minYear: number; maxYear: number }) => void;
 }
@@ -31,6 +32,7 @@ export function TimelineSlider({
   selectedMonth,
   selectedDay,
   searchYear,
+  selectedCategory = 'all',
   onYearChange,
   onBoundsChange,
 }: TimelineSliderProps) {
@@ -211,13 +213,56 @@ export function TimelineSlider({
     }
   };
 
-  const handleMouseUp = () => {
+  // Find the nearest event year to snap to
+  const findNearestEventYear = useCallback((targetYear: number): number => {
+    // Filter events by category if one is selected (not 'all')
+    let filteredEvents = events;
+    if (selectedCategory && selectedCategory !== 'all') {
+      filteredEvents = events.filter(e => e.category.includes(selectedCategory));
+    }
+    
+    // Get all unique years from filtered events
+    // This allows snapping to events even at the edges of the range
+    const allEventYears = filteredEvents.map(e => e.year);
+    
+    // Remove duplicates and sort
+    const uniqueYears = [...new Set(allEventYears)].sort((a, b) => a - b);
+    
+    // Filter to only years within current bounds
+    const yearsInBounds = uniqueYears.filter(year => year >= minYear && year <= maxYear);
+    
+    // If no events in bounds, return the target year as-is
+    if (yearsInBounds.length === 0) {
+      return targetYear;
+    }
+    
+    // Find the closest year within bounds
+    let closestYear = yearsInBounds[0];
+    let smallestDiff = Math.abs(targetYear - closestYear);
+    
+    for (const year of yearsInBounds) {
+      const diff = Math.abs(targetYear - year);
+      if (diff < smallestDiff) {
+        smallestDiff = diff;
+        closestYear = year;
+      }
+    }
+    
+    // Always snap to the closest event year, regardless of distance
+    return closestYear;
+  }, [events, minYear, maxYear, selectedCategory]);
+
+  const handleMouseUp = useCallback(() => {
     if (isDragging && currentYearRef.current !== null) {
-      // Now trigger event loading with the final year value
-      onYearChange(currentYearRef.current.toString());
+      // Snap to nearest event year
+      const snappedYear = findNearestEventYear(currentYearRef.current);
+      setSliderYear(snappedYear);
+      currentYearRef.current = snappedYear;
+      // Trigger event loading with the snapped year value
+      onYearChange(snappedYear.toString());
     }
     setIsDragging(false);
-  };
+  }, [isDragging, findNearestEventYear, onYearChange]);
 
   // Handle click on track
   const handleTrackClick = (e: React.MouseEvent) => {
@@ -236,7 +281,7 @@ export function TimelineSlider({
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isDragging, handleMouseMove]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // Handle zoom in (plus button) - progressive increments: 5, 10, 25, 50, 100, 200, 500
   const handleZoomIn = () => {
@@ -394,7 +439,7 @@ export function TimelineSlider({
 
       {/* Info text */}
       <div className="text-lg text-slate-400 text-center">
-         Drag the blue handle across the timeline to select a year! Range: {minYear} to {maxYear}
+         Drag the blue slider across the timeline to snap to the closest year! Range: {minYear} to {maxYear}
       </div>
     </div>
   );

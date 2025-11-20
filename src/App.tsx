@@ -843,6 +843,7 @@ function MainApp() {
               selectedMonth={selectedMonth}
               selectedDay={selectedDay}
               searchYear={searchYear}
+              selectedCategory={selectedCategory}
               onYearChange={setSearchYear}
               onBoundsChange={setZoomedBounds}
             />
