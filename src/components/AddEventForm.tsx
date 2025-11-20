@@ -11,8 +11,8 @@ Following features this file does:
 */
 
 
-// imports the useState hook from the react library 
-import { useState } from "react";
+// imports the useState and useEffect hooks from the react library 
+import { useState, useEffect } from "react";
 // imports the plus and x icons from the lucide-react library 
 import { Plus, X } from "lucide-react";
 // this was commented out because it is not being used 
@@ -81,6 +81,21 @@ export function AddEventForm({
     "People",
     "Technology",
   ];
+
+  // Helper function to get number of days in a month
+  const getDaysInMonth = (month: number): number => {
+    const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return daysPerMonth[month - 1];
+  };
+
+  // Adjust selected day if it exceeds the number of days in the selected month
+  useEffect(() => {
+    const maxDays = getDaysInMonth(formData.month);
+    if (formData.day > maxDays) {
+      setFormData({ ...formData, day: maxDays });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.month]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     //prevent the default form submission behavior
@@ -276,9 +291,9 @@ export function AddEventForm({
                   }
                   className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 >
-                  {/*this creates a dropdown menu for the day of the event */} 
+                  {/*this creates a dropdown menu for the day of the event based on selected month */} 
                   {/*map through the days array and create an option for each day */} 
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => ( 
+                  {Array.from({ length: getDaysInMonth(formData.month) }, (_, i) => i + 1).map((day) => ( 
                     <option key={day} value={day}>
                       {day}
                     </option>

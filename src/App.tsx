@@ -111,6 +111,13 @@ function MainApp() {
     return text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();// Remove all punctuation and keep only alphanumeric characters and spaces
   };
 
+  // Helper function to get number of days in a month
+  const getDaysInMonth = (month: number): number => {
+    if (month === 0) return 31; // Default for blank selection
+    const daysPerMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    return daysPerMonth[month - 1];
+  };
+
   // Function to extract a proper title from event text, handling abbreviations
   const extractTitle = (text: string): string => {
 
@@ -652,6 +659,15 @@ function MainApp() {
     setKeywordInput('');
   }, [selectedMonth, selectedDay, searchYear, selectedCategory]);
 
+  // Adjust selected day if it exceeds the number of days in the selected month
+  useEffect(() => {
+    const maxDays = getDaysInMonth(selectedMonth);
+    if (selectedDay > maxDays) {
+      setSelectedDay(maxDays);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMonth]);
+
   // This runs automatically whenever the user changes any search settings
   useEffect(() => {
     searchEvents(); // Go find events based on current settings
@@ -759,8 +775,8 @@ function MainApp() {
               >
                 {/* Blank option */}
                 <option value=""></option>
-                {/* Create options for days 1-31 */}
-                {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                {/* Create options for days based on selected month */}
+                {Array.from({ length: getDaysInMonth(selectedMonth) }, (_, i) => i + 1).map((day) => (
                   <option key={day} value={day}>
                     {day}
                   </option>
