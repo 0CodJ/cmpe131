@@ -776,8 +776,9 @@ function MainApp() {
                 value={searchYear}
                 onChange={(e) => {
                   const value = e.target.value;
-                  // Limit to 4 digits maximum
-                  if (value.length <= 4) {
+                  // Allow 4 digits, or 5 characters if it starts with a minus sign (for negative years/BC dates)
+                  const maxLength = value.startsWith('-') ? 5 : 4;
+                  if (value.length <= maxLength) {
                     setSearchYear(value);
                   }
                 }}
