@@ -21,3 +21,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+.supabase
+coverage

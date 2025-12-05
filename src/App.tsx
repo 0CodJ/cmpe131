@@ -1,29 +1,39 @@
-/** 
- * Before coding, go to power shell and type: 
- * After type: npm install --save react react-dom @types/react @types/react-dom
- * This was written by Coco 
- */
+/*
+READ THIS FIRST: 
+This is the main component that makes up the entire website.
+Following features this file does:
+- Fetches historical events from the internet API and the local database
+- Displays the historical events in a timeline
+- Allows users to search for events by keyword, category, and year
+- Allows users to add their own events to the database
+- Allows users to sign in and out of the website
+- Allows users to view the admin dashboard
+*/
 
+// React is used for UIs 
+// Lucide-react is used for icons
+// localEvents is used to store and manage events locally in the browser
+// historyApi is used to fetch historical events from the internet API
+// AddEventForm is used to add events to the database
+// AuthContext is used to manage authentication with Supabase (fully functional) 
+// AuthPanel is used to display the authentication panel
+// AdminDashboard is used to display the admin dashboard
+// TimelineSlider is used to display the timeline slider
 
-/**
- * React is used for UIs 
- * Lucide-react is used for icons
- * 
- */
 // Import React hooks - these let us manage data and respond to changes
 import { useState, useEffect, useCallback } from 'react';
 // Import icons from lucide-react library - these are the little pictures we use in the app
-import { Calendar, Clock, Tag, Search, Database, Globe, Plus, Minus } from 'lucide-react';
+import { Calendar, Clock, Tag, Search, Database, Globe } from 'lucide-react';
 // Import our database connection and the type definition for database events
-import { supabase, HistoricalEvent } from './lib/supabase';
 import { listApproved as listApprovedLocal } from './lib/localEvents';
 // Import the function to get events from the internet and the type for those events
 import { fetchHistoricalEvents, ApiHistoricalEvent } from './lib/historyApi';
 // Import the form component that lets users add their own events
 import { AddEventForm } from './components/AddEventForm';
-import { SimpleAuthProvider, useSimpleAuth } from './context/SimpleAuthContext';
+import { useAuth } from './context/AuthContext';
 import { AuthPanel } from './components/AuthPanel';
 import { AdminDashboard } from './components/AdminDashboard';
+import { TimelineSlider } from './components/TimelineSlider';
 
 
 /**
@@ -35,54 +45,125 @@ import { AdminDashboard } from './components/AdminDashboard';
  * The source of the event (api or database)
  */
 // This defines what information each historical event should have
-interface CombinedEvent {
+export interface CombinedEvent {
   id: string;        // A unique identifier for each event
   title: string;     // The main title/name of the event
   description: string; // A longer explanation of what happened
   month: number;     // Which month it happened (1-12)
   day: number;       // Which day it happened (1-31)
-  year: number;      // Which year it happened
-  category: string;  // What type of event (Science, Politics, etc.)  
+  year: number;      // Which year it happened (numeric)
+  yearDisplay: string; // The year as displayed (may include BC/AD)
+  category: string[];  // What type of event (can have multiple categories)  
   source: 'api' | 'database'; // Where the event came from - internet or our database
+  html?: string;     // HTML content with links (for API events)
+  links?: Array<{    // Links to Wikipedia and other sources (for API events)
+    title: string; 
+    link: string;
+  }>;
 }
 /**
  * 
  * @returns 
  */
-// This is the main component that makes up our entire app
+// This is the main component that makes up the entire website 
 function MainApp() {
-  // Create a list to store all the historical events we find
-  const [events, setEvents] = useState<CombinedEvent[]>([]);
-  // Keep track of whether we're currently loading data (showing spinner)
-  const [loading, setLoading] = useState(false);
-  // Store which month the user has selected (starts with current month)
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
-  // Store which day the user has selected (starts with current day)
-  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
-  // Store the year the user wants to search for (optional, starts empty)
-  const [searchYear, setSearchYear] = useState<string>('');
-  // Store which category of events to show (starts with 'all' to show everything)
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  // Whether to show events from the internet API (starts as true)
-  const [showApiEvents, setShowApiEvents] = useState(true);
-  // Whether to show events from our custom database (starts as true)
-  const [showDbEvents, setShowDbEvents] = useState(true);
-  // Track if API is blocked
-  const [apiBlocked, setApiBlocked] = useState(false);
   
-  // Time slider state
-  const [selectedYear, setSelectedYear] = useState<number>(Math.min(new Date().getFullYear(), 2025));
-  const [zoomLevel, setZoomLevel] = useState<number>(1); // 1, 5, 10, 100 years
-  const [earliestYear, setEarliestYear] = useState<number>(1); // Will be updated when we fetch events
+  const [events, setEvents] = useState<CombinedEvent[]>([]); // Create a list to store all the historical events we find
   
-  // Update selected year when earliest year is determined
-  useEffect(() => {
-    if (earliestYear > 1) {
-      const currentYear = new Date().getFullYear();
-      const validYear = Math.min(Math.max(currentYear, earliestYear), 2025);
-      setSelectedYear(validYear);
+  const [allEventsForDate, setAllEventsForDate] = useState<CombinedEvent[]>([]); // Store all events for the selected month/day (without year filter) for bounds calculation
+
+  const [loading, setLoading] = useState(false); // Keep track of whether we're currently loading data (showing spinner)
+  
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1); // Store which month the user has selected (starts with current month)
+  
+  const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate()); // Store which day the user has selected (starts with current day)
+  
+  const [searchYear, setSearchYear] = useState<string>(''); // Store which year the user has selected (starts with empty string)
+ 
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');  // Store which category of events to show (starts with 'all' to show everything)
+
+  const [searchKeywords, setSearchKeywords] = useState<string>(''); // Store keyword search text (starts with empty string)
+
+  const [zoomedBounds, setZoomedBounds] = useState<{ minYear: number; maxYear: number } | null>(null); // Store zoomed bounds from timeline slider
+
+  const [showApiEvents, setShowApiEvents] = useState(true); // Whether to show events from the internet API (starts as true)
+  
+  const [showDbEvents, setShowDbEvents] = useState(true); // Whether to show events from our custom database (starts as true)
+  
+  const [apiBlocked, setApiBlocked] = useState(false); // Track if API is blocked
+  
+  
+  // Helper function to parse year string (handles "42 BC", "1969", etc.)
+  const parseYear = (yearString: string): number => {
+    const yearMatch = yearString.match(/(-?\d+)/);
+    if (!yearMatch) return 0;
+    const numericYear = parseInt(yearMatch[1]);
+    // If the string contains "BC", make it negative
+    if (yearString.toLowerCase().includes('bc')) {
+      return -Math.abs(numericYear);
     }
-  }, [earliestYear]);
+    return numericYear;
+  };
+
+  // Helper function to remove punctuation causing errors in searching and normalize text for searching (only words)
+  const normalizeForSearch = (text: string): string => {
+    return text.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();// Remove all punctuation and keep only alphanumeric characters and spaces
+  };
+
+  // Function to extract a proper title from event text, handling abbreviations
+  const extractTitle = (text: string): string => {
+
+    // Common abbreviations that end with period. So the code below will not treat them as the end of a sentence unless it is at the very end of the string.
+    const abbreviations = ['U.S.', 'U.K.', 'Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.', 'Sr.', 'Jr.', 'Inc.', 'Ltd.', 'Corp.', 'vs.', 'etc.', 'e.g.', 'i.e.', 'a.m.', 'p.m.', 'A.D.', 'B.C.'];
+    
+    // Look for sentence endings: period followed by space and capital letter
+    // This pattern indicates a real sentence boundary
+    const sentenceEndRegex = /\.\s+[A-Z]/;
+    const match = text.match(sentenceEndRegex);
+    
+    if (match && match.index !== undefined) {
+      const sentenceEndIndex = match.index + 1; // +1 to include the period
+      const potentialTitle = text.substring(0, sentenceEndIndex).trim();
+      
+      // Check if this looks like a real sentence (not just an abbreviation)
+      // If the text before the period is very short (like "U.S."), continue searching
+      const textBeforePeriod = potentialTitle.substring(0, potentialTitle.length - 1).trim();
+      const isLikelyAbbreviation = abbreviations.some(abbr => 
+        textBeforePeriod === abbr.replace('.', '') || 
+        textBeforePeriod.endsWith(' ' + abbr.replace('.', '')) ||
+        potentialTitle === abbr
+      );
+      
+      // If it's a reasonable length and not just an abbreviation, use it
+      if (!isLikelyAbbreviation && potentialTitle.length > 10 && potentialTitle.length <= 200) {
+        return potentialTitle;
+      }
+      
+      // If we found an abbreviation, look for the next sentence ending
+      const nextMatch = text.substring(sentenceEndIndex + 1).match(sentenceEndRegex);
+      if (nextMatch && nextMatch.index !== undefined) {
+        const nextSentenceEnd = sentenceEndIndex + 1 + nextMatch.index + 1;
+        const nextTitle = text.substring(0, nextSentenceEnd).trim();
+        if (nextTitle.length > 10 && nextTitle.length <= 200) {
+          return nextTitle;
+        }
+      }
+    }
+    
+    // Fallback: look for any period+space pattern, but skip if it's clearly an abbreviation
+    const simplePeriodIndex = text.indexOf('. ');
+    if (simplePeriodIndex > 0 && simplePeriodIndex <= 200) {
+      const candidate = text.substring(0, simplePeriodIndex + 1).trim();
+      // Check if it's not just a common abbreviation
+      const isAbbreviation = abbreviations.some(abbr => candidate === abbr || candidate.endsWith(' ' + abbr));
+      if (!isAbbreviation && candidate.length > 10) {
+        return candidate;
+      }
+    }
+    
+    // This is a fallback to ensure the title is not too long. 
+    return text.length > 150 ? text.substring(0, 150).trim() + '...' : text.trim();
+  };
 
   // List of all month names for the dropdown menu
   const months = [
@@ -91,55 +172,262 @@ function MainApp() {
   ];
 
   // List of all event categories for the dropdown menu
-  const categories = ['all', 'Science', 'Politics', 'History', 'Technology', 'Arts', 'Economics'];
+  const categories = ['all', 'General', 'Politics', 'Science', 'Economics', 'Military', 'People', 'Technology'];
   
-  // Zoom levels for the time slider
-  const zoomLevels = [1, 5, 10, 100];
-  const zoomLabels = ['1 Year', '5 Years', '10 Years', '100 Years'];
-
-  // Function to fetch the earliest available year from the API
-  const fetchEarliestYear = async () => {
-    try {
-      // Try a few different dates to find the earliest available year
-      const testDates = [
-        { month: 1, day: 1 }, // January 1st
-        { month: 6, day: 15 }, // June 15th
-        { month: 12, day: 31 } // December 31st
-      ];
-      
-      let earliestFound = 2025; // Start with a high number
-      
-      for (const date of testDates) {
-        try {
-          const events = await fetchHistoricalEvents(date.month, date.day);
-          if (events.length > 0) {
-            // Find the earliest year in the events
-            const years = events.map(event => parseInt(event.year)).filter(year => !isNaN(year));
-            if (years.length > 0) {
-              const minYear = Math.min(...years);
-              if (minYear < earliestFound) {
-                earliestFound = minYear;
-              }
-            }
-          }
-        } catch (error) {
-          // Continue to next date if this one fails
-          continue;
-        }
-      }
-      
-      // If we found events, use the earliest year, otherwise use a reasonable default
-      if (earliestFound < 2025) {
-        setEarliestYear(earliestFound);
-      } else {
-        // Fallback to a reasonable historical starting point
-        setEarliestYear(1);
-      }
-    } catch (error) {
-      console.warn('Could not determine earliest year, using default:', error);
-      setEarliestYear(1);
-    }
+  // Keyword-based categorization system
+  const categoryKeywords: Record<string, string[]> = {
+    Politics: [
+      "government", "state", "nation", "republic", "empire", "kingdom", "monarchy", "dynasty",
+      "parliament", "congress", "senate", "assembly", "cabinet", "ministry", "council", "judiciary",
+      "court", "chancellor", "prime minister", "president", "governor", "mayor", "diplomat",
+      "ambassador", "constitution", "charter", "charters", "chartered", "chartering",
+      "decree", "decrees", "decreed", "decreeing",
+      "proclamation", "treaty", "alliance",
+      "pact", "agreement", "resolution", "legislation", "law", "amendment", "bill", "referendum",
+      "plebiscite",
+      "mandate", "mandates", "mandated", "mandating",
+      "sovereignty", "jurisdiction", "citizenship", "immigration",
+      "borders",
+      "annexation", "secession", "independence", "unification", "dissolution",
+      "federation", "confederation", "colony", "colonialism", "decolonization", "imperialism",
+      "nationalism", "socialism", "communism", "capitalism", "liberalism", "conservatism",
+      "fascism", "anarchism", "populism", "authoritarianism", "totalitarianism", "democracy",
+      "oligarchy", "aristocracy", "bureaucracy",
+      "reform", "reforms", "reformed", "reforming",
+      "revolution", "coup", "uprising",
+      "rebellion",
+      "protest", "protests", "protested", "protesting",
+      "demonstration", "civil unrest", "civil rights", "human rights",
+      "advocacy", "activism",
+      "campaign", "campaigns", "campaigned", "campaigning",
+      "corruption", "scandal", "censorship", "propaganda",
+      "sanction", "sanctions", "sanctioned", "sanctioning",
+      "embargo", "embargoes", "embargoed", "embargoing",
+      "diplomacy", "negotiation",
+      "veto", "vetoes", "vetoed", "vetoing",
+      "executive order", "policy",
+      "governance", "regulation", "oversight", "transparency",
+      "election", "inauguration",
+      "impeachment", "succession",
+      "taxation",
+      "budget", "budgets", "budgeted", "budgeting",
+      "welfare", "public service", "statecraft",
+      "geopolitics"
+    ],
+  
+    Science: [
+      "experiment", "experiments", "experimented", "experimenting",
+      "discovery",
+      "hypothesis", "theory", "law",
+      "observation", "measurement",
+      "analysis", "calculation", "classification", "modeling", "simulation", "prediction",
+      "research", "researches", "researched", "researching",
+      "publication", "peer review", "dataset", "laboratory", "fieldwork", "specimen",
+      "sample", "microscope", "telescope", "particle", "atom", "molecule", "DNA", "RNA", "genome",
+      "cell", "organism", "species", "evolution", "adaptation", "biodiversity", "ecology",
+      "climate", "climate change", "atmosphere", "geology", "tectonics", "volcano", "earthquake",
+      "magnetism", "radiation", "energy", "quantum", "relativity", "thermodynamics", "gravity",
+      "motion", "wave", "optics", "astronomy", "supernova", "nebula", "galaxy", "black hole",
+      "comet", "asteroid", "meteor", "chemistry", "reaction", "compound", "solution", "physics",
+      "electronics", "kinetics", "biology", "anatomy", "physiology", "botany", "zoology",
+      "microbiology", "genetics", "biotechnology", "medicine", "vaccine", "drug", "diagnosis",
+      "treatment", "pathology", "epidemiology", "statistics", "mathematics", "algebra", "calculus",
+      "geometry", "number theory", "robotics", "nanotechnology", "materials science", "engineering",
+      "computing", "algorithms", "data science", "ecology", "conservation", "renewable energy",
+      "planetary science", "space exploration", "biophysics", "astrobiology"
+    ],
+  
+    Economics: [
+      "economy", "economic policy", "recession", "depression", "inflation", "hyperinflation",
+      "deflation", "stagflation", "unemployment", "labor", "wages", "minimum wage", "living wage",
+      "capital", "investment",
+      "trade", "trades", "traded", "trading",
+      "exports", "imports", "tariffs", "subsidies", "market",
+      "supply", "demand", "price", "competition", "monopoly", "oligopoly", "free market",
+      "capitalism", "social market", "privatization", "nationalization", "finance", "banking",
+      "interest rates", "credit", "debt", "bond", "stock market", "crash", "boom", "GDP",
+      "industrialization", "globalization", "consumerism", "commerce", "entrepreneurship",
+      "corporation", "business", "profit", "loss", "bankruptcy", "inflation rate", "exchange rate",
+      "currency", "trade route", "merchants", "economist", "economic growth", "fiscal policy",
+      "monetary policy", "central bank", "Wall Street", "commercial trade", "economic sanctions",
+      "import restrictions", "export controls", "taxation", "budget deficit", "surplus",
+      "economic collapse", "economic recovery"
+    ],
+  
+    Military: [
+      "war",
+      "battle", "battles", "battled", "battling",
+      "conflict",
+      "campaign", "campaigns", "campaigned", "campaigning",
+      "operation", "mission",
+      "assault", "assaults", "assaulted", "assaulting",
+      "offensive", "defensive",
+      "raid", "raids", "raided", "raiding",
+      "siege",
+      "ambush", "ambushes", "ambushed", "ambushing",
+      "skirmish", "skirmishes", "skirmished", "skirmishing",
+      "invasion", "occupation", "liberation",
+      "retreat", "retreats", "retreated", "retreating",
+      "surrender", "surrenders", "surrendered", "surrendering",
+      "armistice", "ceasefire", "truce", "peace treaty",
+      "strategy", "tactics", "maneuver", "formation", "mobilization", "conscription", "enlistment",
+      "deployment", "logistics", "supply lines", "fortifications", "trenches", "bunkers",
+      "naval fleet", "army", "infantry", "cavalry", "artillery", "armored division", "marines",
+      "navy", "air force", "special forces", "paratroopers", "commandos", "guerrilla",
+      "insurgency", "counterinsurgency", "militia", "mercenary", "general", "commander",
+      "colonel", "captain", "lieutenant", "sergeant", "soldier", "veteran", "intelligence",
+      "reconnaissance",
+      "espionage",
+      "sabotage", "sabotages", "sabotaged", "sabotaging",
+      "codebreaking", "encryption", "radar", "sonar",
+      "missile", "rocket", "bomb", "bombs", "bombed", "bombing",
+      "ammunition", "firearm", "rifle", "pistol", "tank", "drone",
+      "helicopter", "aircraft", "jet", "fighter", "submarine", "battleship", "carrier",
+      "chemical weapons", "biological weapons", "nuclear weapons", "wartime production",
+      "demilitarization", "war crimes", "tribunal", "occupation forces"
+    ],
+  
+    People: [
+      "birth", "death", "burial", "coronation", "inauguration", "marriage", "divorce",
+      "ascension", "abdication", "exile", "pilgrimage", "biography", "legacy", "influence",
+      "childhood", "adulthood", "career", "retirement", "achievements", "accomplishments",
+      "discoveries", "creations", "awards", "honors", "recognition", "leadership", "presidency",
+      "kingship", "rulership", "command",
+      "activism", "advocacy",
+      "protest", "protests", "protested", "protesting",
+      "speech",
+      "philosophy", "teachings", "writings", "publication", "invention", "exploration", "voyage",
+      "expedition", "migration", "settlement", "education", "mentorship", "training",
+      "apprenticeship", "scandal", "downfall", "assassination", "illness", "recovery",
+      "humanitarian work", "charity", "scholarship",
+      "debate", "debates", "debated", "debating",
+      "collaboration", "rivalry",
+      "partnership", "inspiration", "innovation", "resistance", "reform", "reforms", "reformed", "reforming",
+      "creativity", "authorship", "performance", "composition", "breakthrough", "public service"
+    ],
+  
+    Technology: [
+      "invention", "innovation", "breakthrough", "prototype", "patent", "blueprint",
+      "architecture", "system", "hardware", "software", "firmware", "algorithm", "code",
+      "programming", "computing", "processors", "chip", "microchip", "semiconductor",
+      "transistor", "circuit", "motherboard", "memory", "storage", "database", "networking",
+      "ethernet", "wireless", "radio", "telecommunications", "satellite", "fiber optics",
+      "robotics", "automation", "AI", "machine learning", "deep learning", "neural networks",
+      "blockchain", "cybersecurity", "encryption", "cryptography", "quantum computing",
+      "virtual reality", "augmented reality", "sensors", "IoT", "drone", "industrial machinery",
+      "engines", "turbines", "generators", "battery", "electricity", "power grid", "solar panels",
+      "renewable energy", "nuclear energy", "automotive technology", "transportation",
+      "railway", "aviation", "aerospace", "spacecraft", "rocket", "lander", "rover", "telescope",
+      "medical devices", "MRI", "X-ray", "surgical robots", "bioengineering", "nanotechnology",
+      "manufacturing", "3D printing", "fabrication",
+      "design", "designs", "designed", "designing",
+      "engineering", "user interface",
+      "operating system", "mobile device", "smartphone", "computer", "console", "internet",
+      "web", "cloud computing",
+      "deployment",
+      "release", "releases", "released", "releasing",
+      "upgrade", "upgrades", "upgraded", "upgrading",
+      "versioning", "maintenance"
+    ]
   };
+
+  // Function to automatically categorize events based on keywords
+  const categorizeEvent = (title: string, description: string): string[] => {
+    const text = normalizeForSearch(title + ' ' + description);
+    const matchedCategories: string[] = [];
+    
+    // Check each category's keywords
+    for (const [category, keywords] of Object.entries(categoryKeywords)) {
+      // Check if any keyword from this category appears in the text
+      if (keywords.some(keyword => {
+        const normalizedKeyword = normalizeForSearch(keyword);
+        // Use word boundary matching to avoid substring false positives
+        // For multi-word keywords, check if the phrase appears
+        // For single words, use word boundaries
+        if (normalizedKeyword.includes(' ')) {
+          // Multi-word keyword: check if the phrase appears
+          return text.includes(normalizedKeyword);
+        } else {
+          // Single word: use word boundary regex to match whole words only
+          const wordBoundaryRegex = new RegExp(`\\b${normalizedKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          return wordBoundaryRegex.test(text);
+        }
+      })) {
+        matchedCategories.push(category);
+      }
+    }
+    
+    // If no categories matched, default to 'General'
+    return matchedCategories.length > 0 ? matchedCategories : ['General'];
+  };
+
+  // This function fetches all events for the selected month/day (without filters) for bounds calculation
+  const fetchAllEventsForDate = useCallback(async () => {
+    try {
+      const allEvents: CombinedEvent[] = [];
+
+      // Fetch all API events for the selected month and day
+      if (showApiEvents) {
+        const apiEvents = await fetchHistoricalEvents(selectedMonth, selectedDay);
+        
+        const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => {
+          // Extract a clean title using smart sentence detection
+          const title = extractTitle(event.text);
+          const numericYear = parseYear(event.year);
+          
+          // Automatically categorize based on keywords
+          const autoCategories = categorizeEvent(title, event.text);
+          
+          return {
+            id: `api-${event.year}-${event.text.substring(0, 20).replace(/\s/g, '-')}`,
+            title: title.trim(),
+            description: event.text,
+            month: selectedMonth,
+            day: selectedDay,
+            year: numericYear,
+            yearDisplay: event.year,
+            category: autoCategories,
+            source: 'api' as const,
+            html: event.html,
+            links: event.links
+          };
+        });
+        allEvents.push(...formattedApiEvents);
+      }
+
+      // Fetch all database events for the selected month and day
+      if (showDbEvents) {
+        const local = listApprovedLocal()
+          .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay));
+        const formatted: CombinedEvent[] = local.map(e => {
+          // Convert single category string to array, and also apply auto-categorization
+          const existingCategory = e.category && e.category !== 'General' ? [e.category] : [];
+          const autoCategories = categorizeEvent(e.title, e.description);
+          // Combine existing category with auto-categorized ones, removing duplicates
+          const allCategories = Array.from(new Set([...existingCategory, ...autoCategories]));
+          
+          return {
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            month: e.month,
+            day: e.day,
+            year: e.year,
+            yearDisplay: e.year.toString(),
+            category: allCategories.length > 0 ? allCategories : ['General'],
+            source: 'database',
+          };
+        });
+        allEvents.push(...formatted);
+      }
+
+      allEvents.sort((a, b) => b.year - a.year);
+      setAllEventsForDate(allEvents);
+    } catch (error) {
+      console.error('Error fetching all events for date:', error);
+      setAllEventsForDate([]);
+    }
+  }, [selectedMonth, selectedDay, showApiEvents, showDbEvents]);
 
   // This function searches for historical events based on user's selections
   const searchEvents = useCallback(async () => {
@@ -153,23 +441,43 @@ function MainApp() {
         const apiEvents = await fetchHistoricalEvents(selectedMonth, selectedDay);
         
         // Check if we got sample data (API was blocked)
-        if (apiEvents.length > 0 && apiEvents[0].text.includes('Apollo 11')) {
-          setApiBlocked(true);
+        // Only check for blocking if we have valid month/day selections (not both blank)
+        // When both are blank, we might get no results which shouldn't be considered blocking
+        if (selectedMonth !== 0 && selectedDay !== 0) {
+          if (apiEvents.length > 0 && apiEvents[0].text.includes('Apollo 11')) {
+            setApiBlocked(true);
+          } else {
+            setApiBlocked(false);
+          }
         } else {
+          // When selections are blank, don't consider it as blocking
           setApiBlocked(false);
         }
         
         // Convert the internet events to our standard format
-        const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => ({
-          id: `api-${event.year}-${event.text.substring(0, 20)}`, // Create a unique ID
-          title: event.text, // Use full text as title (no truncation)
-          description: event.text, // Use full text as description
-          month: selectedMonth, // Use the month user selected
-          day: selectedDay, // Use the day user selected
-          year: parseInt(event.year), // Convert year to a number
-          category: 'History', // All API events are categorized as History
-          source: 'api' as const // Mark this as coming from the internet
-        }));
+        const formattedApiEvents: CombinedEvent[] = apiEvents.map((event: ApiHistoricalEvent) => {
+          // Extract a clean title using smart sentence detection
+          const title = extractTitle(event.text);
+          // Parse year - handle formats like "42 BC", "1969", etc.
+          const numericYear = parseYear(event.year);
+          
+          // Automatically categorize based on keywords
+          const autoCategories = categorizeEvent(title, event.text);
+          
+          return {
+            id: `api-${event.year}-${event.text.substring(0, 20).replace(/\s/g, '-')}`, // Create a unique ID
+            title: title.trim(), // Use first sentence or truncated text as title
+            description: event.text, // Use full text as description
+            month: selectedMonth, // Use the month user selected
+            day: selectedDay, // Use the day user selected
+            year: numericYear, // Convert year to a number for sorting/filtering
+            yearDisplay: event.year, // Keep original year format for display
+            category: autoCategories, // Automatically categorized based on keywords
+            source: 'api' as const, // Mark this as coming from the internet
+            html: event.html, // Store HTML content with links
+            links: event.links // Store links array
+          };
+        });
 
         let filteredApiEvents = formattedApiEvents; // Start with all API events
         // If user specified a year, only keep events from that year
@@ -178,28 +486,101 @@ function MainApp() {
         }
         // If user selected a specific category, only keep events from that category
         if (selectedCategory !== 'all') {
-          filteredApiEvents = filteredApiEvents.filter(e => e.category === selectedCategory);
+          filteredApiEvents = filteredApiEvents.filter(e => e.category.includes(selectedCategory));
+        }
+        // Keyword search: only works if both month and day are selected
+        if (searchKeywords.trim()) {
+          if (selectedMonth === 0 || selectedDay === 0) {
+            // If keywords provided but month or day is blank, show no events
+            filteredApiEvents = [];
+          } else {
+            // Normalize search keywords (remove punctuation, only words)
+            const normalizedKeywords = normalizeForSearch(searchKeywords);
+            // If normalized keywords are empty (only punctuation was entered), show no events
+            if (!normalizedKeywords || normalizedKeywords.trim().length === 0) {
+              filteredApiEvents = [];
+            } else {
+              // Filter by keywords in title or description (case-insensitive, punctuation ignored)
+              filteredApiEvents = filteredApiEvents.filter(e => {
+                const normalizedTitle = normalizeForSearch(e.title);
+                const normalizedDescription = normalizeForSearch(e.description);
+                return normalizedTitle.includes(normalizedKeywords) ||
+                       normalizedDescription.includes(normalizedKeywords);
+              });
+            }
+          }
+        }
+        // Filter by zoomed bounds if zoom is applied
+        if (zoomedBounds) {
+          filteredApiEvents = filteredApiEvents.filter(e => 
+            e.year >= zoomedBounds.minYear && e.year <= zoomedBounds.maxYear
+          );
         }
         combinedEvents.push(...filteredApiEvents); // Add filtered events to our list
       }
 
       // If user wants to see events from our custom store (approved only)
       if (showDbEvents) {
-        const local = listApprovedLocal()
-          .filter(e => e.month === selectedMonth && e.day === selectedDay)
-          .filter(e => (searchYear ? e.year === parseInt(searchYear) : true))
-          .filter(e => (selectedCategory !== 'all' ? e.category === selectedCategory : true));
-        const formatted: CombinedEvent[] = local.map(e => ({
-          id: e.id,
-          title: e.title,
-          description: e.description,
-          month: e.month,
-          day: e.day,
-          year: e.year,
-          category: e.category,
-          source: 'database',
-        }));
-        combinedEvents.push(...formatted);
+        let local = listApprovedLocal()
+          .filter(e => (selectedMonth === 0 || e.month === selectedMonth) && (selectedDay === 0 || e.day === selectedDay))
+          .filter(e => (searchYear ? e.year === parseInt(searchYear) : true));
+        
+        // Keyword search: only works if both month and day are selected
+        if (searchKeywords.trim()) {
+          if (selectedMonth === 0 || selectedDay === 0) {
+            // If keywords provided but month or day is blank, show no events
+            local = [];
+          } else {
+            // Normalize search keywords (remove punctuation, only words)
+            const normalizedKeywords = normalizeForSearch(searchKeywords);
+            // If normalized keywords are empty (only punctuation was entered), show no events
+            if (!normalizedKeywords || normalizedKeywords.trim().length === 0) {
+              local = [];
+            } else {
+              // Filter by keywords in title or description (case-insensitive, punctuation ignored)
+              local = local.filter(e => {
+                const normalizedTitle = normalizeForSearch(e.title);
+                const normalizedDescription = normalizeForSearch(e.description);
+                return normalizedTitle.includes(normalizedKeywords) ||
+                       normalizedDescription.includes(normalizedKeywords);
+              });
+            }
+          }
+        }
+        // Filter by zoomed bounds if zoom is applied
+        if (zoomedBounds) {
+          local = local.filter(e => 
+            e.year >= zoomedBounds.minYear && e.year <= zoomedBounds.maxYear
+          );
+        }
+        
+        const formatted: CombinedEvent[] = local.map(e => {
+          // Convert single category string to array, and also apply auto-categorization
+          const existingCategory = e.category && e.category !== 'General' ? [e.category] : [];
+          const autoCategories = categorizeEvent(e.title, e.description);
+          // Combine existing category with auto-categorized ones, removing duplicates
+          const allCategories = Array.from(new Set([...existingCategory, ...autoCategories]));
+          
+          return {
+            id: e.id,
+            title: e.title,
+            description: e.description,
+            month: e.month,
+            day: e.day,
+            year: e.year,
+            yearDisplay: e.year.toString(), // Use numeric year as display for database events
+            category: allCategories.length > 0 ? allCategories : ['General'],
+            source: 'database',
+          };
+        });
+        
+        // Filter by category after mapping (so we can check the array)
+        let filteredLocal = formatted;
+        if (selectedCategory !== 'all') {
+          filteredLocal = filteredLocal.filter(e => e.category.includes(selectedCategory));
+        }
+        
+        combinedEvents.push(...filteredLocal);
       }
 
       // Sort all events by year (newest first) and save them
@@ -211,59 +592,21 @@ function MainApp() {
     } finally {
       setLoading(false); // Hide the loading spinner
     }
-  }, [selectedMonth, selectedDay, searchYear, selectedCategory, showApiEvents, showDbEvents]);
+  }, [selectedMonth, selectedDay, searchYear, selectedCategory, searchKeywords, zoomedBounds, showApiEvents, showDbEvents]);
 
-  // Time slider functions
-  const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newYear = parseInt(event.target.value);
-    // Ensure the year is within the valid range (earliestYear to 2025)
-    const cappedYear = Math.min(Math.max(newYear, earliestYear), 2025);
-    setSelectedYear(cappedYear);
-    setSearchYear(cappedYear.toString());
-  };
-
-  const handleZoomIn = () => {
-    const currentIndex = zoomLevels.indexOf(zoomLevel);
-    if (currentIndex < zoomLevels.length - 1) {
-      setZoomLevel(zoomLevels[currentIndex + 1]);
-    }
-  };
-
-  const handleZoomOut = () => {
-    const currentIndex = zoomLevels.indexOf(zoomLevel);
-    if (currentIndex > 0) {
-      setZoomLevel(zoomLevels[currentIndex - 1]);
-    }
-  };
-
-  // Calculate slider range based on zoom level
-  const getSliderRange = () => {
-    const currentYear = new Date().getFullYear();
-    const range = zoomLevel * 50; // Show 50 increments of the zoom level
-    return {
-      min: Math.max(earliestYear, currentYear - range), // Use earliest year as minimum
-      max: Math.min(2025, currentYear + range) // Cap maximum at 2025
-    };
-  };
-
-  const sliderRange = getSliderRange();
-
-  // Fetch the earliest available year when component mounts
+  // Fetch all events for bounds calculation when month/day changes
   useEffect(() => {
-    fetchEarliestYear();
-  }, []);
+    fetchAllEventsForDate();
+    // Reset zoomed bounds when month/day changes (zoom will reset in TimelineSlider)
+    setZoomedBounds(null);
+  }, [fetchAllEventsForDate]);
 
   // This runs automatically whenever the user changes any search settings
   useEffect(() => {
     searchEvents(); // Go find events based on current settings
   }, [searchEvents]);
 
-  // This function converts month/day/year numbers into a nice readable date
-  const formatDate = (month: number, day: number, year: number) => {
-    return `${months[month - 1]} ${day}, ${year}`; // Example: "January 15, 1969"
-  };
-
-  const { profile } = useSimpleAuth();
+  const { profile } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
 
   // This is what gets displayed on the webpage
@@ -281,7 +624,7 @@ function MainApp() {
             <h1 className="text-5xl font-bold text-white">Historical Events</h1>
           </div>
           {/* Subtitle explaining what the app does */}
-          <p className="text-slate-300 text-lg">Discover what happened on any date in history</p>
+          <p className="text-slate-300 text-lg">Discover what happened on any date in history!</p>
         </header>
 
         {/* Auth panel and Admin toggle */}
@@ -300,82 +643,6 @@ function MainApp() {
           {showAdmin && profile?.role === 'admin' && (
             <AdminDashboard />
           )}
-        </div>
-
-        {/* Time Slider Section */}
-        <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl shadow-2xl p-6 mb-8 border border-slate-700">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-white flex items-center">
-              <Clock className="w-5 h-5 text-blue-400 mr-2" />
-              Time Slider
-            </h2>
-            
-            {/* Zoom Controls */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleZoomOut}
-                disabled={zoomLevel === zoomLevels[0]}
-                className="p-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:opacity-50 text-white rounded-lg transition"
-                title="Zoom Out"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              
-              <span className="text-slate-300 text-sm px-3 py-1 bg-slate-700 rounded-lg">
-                {zoomLabels[zoomLevels.indexOf(zoomLevel)]}
-              </span>
-              
-              <button
-                onClick={handleZoomIn}
-                disabled={zoomLevel === zoomLevels[zoomLevels.length - 1]}
-                className="p-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:opacity-50 text-white rounded-lg transition"
-                title="Zoom In"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          
-          {/* Time Slider */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between text-sm text-slate-400">
-              <span>{sliderRange.min}</span>
-              <span className="text-blue-400 font-semibold text-lg">{selectedYear}</span>
-              <span>{sliderRange.max}</span>
-            </div>
-            
-            <div className="relative w-full h-8 flex items-center group">
-              {/* Background track */}
-              <div className="absolute inset-0 h-2 bg-slate-700 rounded-lg group-hover:bg-slate-600 transition-colors"></div>
-              
-              {/* Container for the blue bar to prevent overflow */}
-              <div className="absolute inset-0 h-2 overflow-hidden rounded-lg">
-                {/* Active range indicator - shows the current zoom level as a bar */}
-                <div 
-                  className="absolute h-2 bg-gradient-to-r from-blue-500 to-blue-400 rounded-lg transition-all duration-300 shadow-lg group-hover:shadow-blue-500/25"
-                  style={{
-                    left: `${Math.max(0, ((selectedYear - sliderRange.min) / (sliderRange.max - sliderRange.min)) * 100 - (zoomLevel / (sliderRange.max - sliderRange.min)) * 50)}%`,
-                    width: `${Math.max(4, (zoomLevel / (sliderRange.max - sliderRange.min)) * 100)}%`
-                  }}
-                ></div>
-              </div>
-              
-              {/* Invisible slider input - covers the entire bar area */}
-              <input
-                type="range"
-                min={sliderRange.min}
-                max={sliderRange.max}
-                step={zoomLevel}
-                value={selectedYear}
-                onChange={handleSliderChange}
-                className="absolute inset-0 w-full h-8 bg-transparent appearance-none cursor-pointer slider-thumb opacity-0"
-              />
-            </div>
-            
-            <div className="text-center text-slate-400 text-sm">
-              Drag the slider to explore different years • Current zoom: {zoomLevel} year{zoomLevel !== 1 ? 's' : ''} per step
-            </div>
-          </div>
         </div>
 
         {/* Warning message if API is blocked */}
@@ -410,10 +677,15 @@ function MainApp() {
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Month</label>
               <select
-                value={selectedMonth} // Show currently selected month
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))} // Update when user changes selection
+                value={selectedMonth === 0 ? '' : selectedMonth} // Show currently selected month or blank
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedMonth(value === '' ? 0 : parseInt(value));
+                }} // Update when user changes selection
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               >
+                {/* Blank option */}
+                <option value=""></option>
                 {/* Create an option for each month */}
                 {months.map((month, index) => (
                   <option key={month} value={index + 1}>
@@ -427,10 +699,15 @@ function MainApp() {
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">Day</label>
               <select
-                value={selectedDay} // Show currently selected day
-                onChange={(e) => setSelectedDay(parseInt(e.target.value))} // Update when user changes selection
+                value={selectedDay === 0 ? '' : selectedDay} // Show currently selected day or blank
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSelectedDay(value === '' ? 0 : parseInt(value));
+                }} // Update when user changes selection
                 className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               >
+                {/* Blank option */}
+                <option value=""></option>
                 {/* Create options for days 1-31 */}
                 {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
                   <option key={day} value={day}>
@@ -440,15 +717,19 @@ function MainApp() {
               </select>
             </div>
 
-            {/* Year input field (optional) */}
+            {/* Year input field */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Year (Optional)</label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Year</label>
               <input
-                type="number" // Only allow numbers
-                value={searchYear} // Show currently entered year
-                onChange={(e) => setSearchYear(e.target.value)} // Update when user types
-                placeholder="Any year" // Hint text when field is empty
-                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                type="number"
+                value={searchYear}
+                onChange={(e) => {
+                  // Allow free typing - don't clamp the input value
+                  // The slider will handle clamping to bounds
+                  setSearchYear(e.target.value);
+                }}
+                placeholder="Enter year (Optional)"
+                className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
               />
             </div>
 
@@ -468,6 +749,35 @@ function MainApp() {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Keyword Search Input */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Search Keywords</label>
+            <input
+              type="text"
+              value={searchKeywords}
+              onChange={(e) => setSearchKeywords(e.target.value)}
+              placeholder="Enter keywords to search in event titles and descriptions. (Month and day fields must be filled in to use keyword search)"
+              className="w-full px-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+            />
+            {searchKeywords && (selectedMonth === 0 || selectedDay === 0) && (
+              <p className="text-yellow-400 text-sm mt-2">
+                Please select both month and day to use keyword search.
+              </p>
+            )}
+          </div>
+
+          {/* Timeline Slider for Year Selection */}
+          <div className="mb-6">
+            <TimelineSlider
+              events={allEventsForDate}
+              selectedMonth={selectedMonth}
+              selectedDay={selectedDay}
+              searchYear={searchYear}
+              onYearChange={setSearchYear}
+              onBoundsChange={setZoomedBounds}
+            />
           </div>
 
           {/* Toggle switches and current selection display */}
@@ -499,19 +809,21 @@ function MainApp() {
                 <span className="text-slate-300">Custom Events</span>
               </label>
             </div>
-            {/* Display what date we're currently searching */}
-            <div className="text-center">
-              <p className="text-slate-400">
-                Showing events for{' '}
-                <span className="text-blue-400 font-semibold">
-                  {months[selectedMonth - 1]} {selectedDay} {/* Show selected month and day */}
-                </span>
-                {/* If user specified a year, show it too */}
-                {searchYear && (
-                  <span className="text-blue-400 font-semibold">, {searchYear}</span>
-                )}
-              </p>
-            </div>
+            {/* Display what date we're currently searching - only show if both month and day are selected */}
+            {selectedMonth !== 0 && selectedDay !== 0 && (
+              <div className="text-center">
+                <p className="text-slate-400">
+                  Showing events for{' '}
+                  <span className="text-blue-400 font-semibold">
+                    {months[selectedMonth - 1]} {selectedDay}
+                  </span>
+                  {/* If user specified a year, show it too */}
+                  {searchYear && (
+                    <span className="text-blue-400 font-semibold">, {searchYear}</span>
+                  )}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -539,14 +851,16 @@ function MainApp() {
                 {/* Event header with title and badges */}
                 <div className="mb-3">
                   {/* Event title - full width */}
-                  <h4 className="text-xl font-semibold text-white mb-3 leading-relaxed">{event.title}</h4>
+                  <h4 className="text-xl font-semibold text-white mb-3 leading-relaxed break-words whitespace-normal overflow-visible">{event.title}</h4>
                   {/* Badges showing category and source */}
-                  <div className="flex gap-2">
-                    {/* Category badge */}
-                    <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium flex items-center">
-                      <Tag className="w-3 h-3 mr-1" />
-                      {event.category}
-                    </span>
+                  <div className="flex gap-2 flex-wrap">
+                    {/* Category badges - show all categories */}
+                    {event.category.map((cat, idx) => (
+                      <span key={idx} className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-medium flex items-center">
+                        <Tag className="w-3 h-3 mr-1" />
+                        {cat}
+                      </span>
+                    ))}
                     {/* Source badge - different colors for API vs database */}
                     <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center ${
                       event.source === 'api'
@@ -562,10 +876,37 @@ function MainApp() {
                 {/* Event date */}
                 <div className="flex items-center text-slate-400 mb-3">
                   <Calendar className="w-4 h-4 mr-2" />
-                  <span className="font-medium">{formatDate(event.month, event.day, event.year)}</span>
+                  <span className="font-medium">
+                    {months[event.month - 1]} {event.day}, {event.yearDisplay}
+                  </span>
                 </div>
                 {/* Event description */}
-                <p className="text-slate-300 leading-relaxed">{event.description}</p>
+                <p className="text-slate-300 leading-relaxed mb-3">{event.description}</p>
+                {/* Links section for API events */}
+                {event.links && event.links.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-700">
+                    <h5 className="text-sm font-semibold text-slate-400 mb-2 flex items-center">
+                      <Globe className="w-4 h-4 mr-1" />
+                      Related Links:
+                    </h5>
+                    <div className="flex flex-wrap gap-2">
+                      {event.links.map((link, index) => (
+                        <a
+                          key={index}
+                          href={link.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-blue-300 hover:text-blue-200 rounded-lg text-sm transition-colors inline-flex items-center gap-1"
+                        >
+                          <span>{link.title}</span>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -591,11 +932,7 @@ function MainApp() {
 }
 
 function App() {
-  return (
-    <SimpleAuthProvider>
-      <MainApp />
-    </SimpleAuthProvider>
-  );
+  return <MainApp />;
 }
 
 // Export this component so it can be used in other files

@@ -54,4 +54,10 @@ export function approveEvent(eventId: string) {
   saveAll(updated);
 }
 
+export function denyEvent(eventId: string) {
+  const events = loadAll();
+  const updated = events.filter(e => e.id !== eventId);
+  saveAll(updated);
+}
+
 
