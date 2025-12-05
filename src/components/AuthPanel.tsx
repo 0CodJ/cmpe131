@@ -9,12 +9,12 @@ Following features this file does:
 */
 
 import { useState } from 'react'; //imports the useState hook from the react library 
-import { useSimpleAuth } from '../context/SimpleAuthContext'; //imports the useSimpleAuth hook from the SimpleAuthContext file
+import { useAuth } from '../context/AuthContext'; //imports the useAuth hook from the AuthContext file
 
 
 //The AuthPanel component handles user authentication
 export function AuthPanel() {
-  const { profile, loading, signIn, signUp, signOut } = useSimpleAuth(); //logged in user info, loading state, sign in function, sign up function, and sign out function
+  const { profile, loading, signIn, signUp, signOut } = useAuth(); //logged in user info, loading state, sign in function, sign up function, and sign out function
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState(''); //email input
   const [password, setPassword] = useState(''); //passw ord input
@@ -46,11 +46,22 @@ export function AuthPanel() {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
-    const err = mode === 'signin'
-      ? await signIn(email, password) //if in signin mode, call signIn
-      : await signUp(email, password); //if in signup mode, call signUp 
-    if (err) setError(err);
-    setSubmitting(false); //mark submission as done 
+    try {
+      const err = mode === 'signin'
+        ? await signIn(email, password) //if in signin mode, call signIn
+        : await signUp(email, password); //if in signup mode, call signUp 
+      if (err) {
+        setError(err);
+      } else {
+        // Clear form on success
+        setEmail('');
+        setPassword('');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'An error occurred');
+    } finally {
+      setSubmitting(false); //mark submission as done 
+    }
   };
 
 

@@ -10,36 +10,28 @@ Following features this file does:
 
 
 import { useEffect, useState } from 'react'; //imports the useEffect and useState hooks from the react library 
-import { useSimpleAuth } from '../context/SimpleAuthContext'; //used to access current user info
+import { useAuth } from '../context/AuthContext'; //used to access current user info
 import { approveEvent, denyEvent, listPending as listPendingEvents } from '../lib/localEvents'; //used to approve and deny events and list pending events
-
-
-//type definition for pending users waiting for admin approval 
-type PendingUser = { 
-  id: string;
-  email: string | null;
-  role: string | null;
-  approved: boolean | null;
-};
+import type { UserProfile } from '../context/AuthContext';
 
 
 //This whole block is for the admin dashboard. This allows admin to approve or deny users and events. 
 export function AdminDashboard() {
-  const { profile, listPendingUsers, approveUser } = useSimpleAuth(); //logged in user info, list of users waiting approval, and function to approve user
-  const [pending, setPending] = useState<PendingUser[]>([]); //list of users waiting approval
+  const { profile, listPendingUsers, approveUser } = useAuth(); //logged in user info, list of users waiting approval, and function to approve user
+  const [pending, setPending] = useState<UserProfile[]>([]); //list of users waiting approval
   const [pendingEvents, setPendingEvents] = useState<ReturnType<typeof listPendingEvents>>([]); //list of events waiting approval
   const [loading, setLoading] = useState(false); //state for loading data 
   const [error, setError] = useState<string | null>(null); //error message if something goes wrong 
 
 
-  //Fetch all pending users and events from local storage 
+  //Fetch all pending users and events from Supabase and local storage 
   const fetchPending = async () => {
     setLoading(true); //show loading indicator while getting data 
     setError(null); //clear any previous errors 
     try {
-      const data = listPendingUsers(); //get list of users waiting approval 
-      setPending(data as PendingUser[]); //update state with pending users (as PendingUser[] which tells TypeScript the type of the data)
-      setPendingEvents(listPendingEvents()); //get list of events waiting approval 
+      const data = await listPendingUsers(); //get list of users waiting approval from Supabase
+      setPending(data); //update state with pending users
+      setPendingEvents(listPendingEvents()); //get list of events waiting approval from local storage
     } catch (e: any) {
       setError(e?.message || 'Failed to load pending users');
     }
@@ -52,8 +44,12 @@ export function AdminDashboard() {
   }, []);
 
   const approve = async (userId: string) => {
-    approveUser(userId); //approve the user (status gets updated in local storage)
-    await fetchPending(); //refreeshes the list of pending users and events 
+    try {
+      await approveUser(userId); //approve the user (status gets updated in Supabase)
+      await fetchPending(); //refreshes the list of pending users and events 
+    } catch (e: any) {
+      setError(e?.message || 'Failed to approve user');
+    }
   };
 
   const approveEvt = async (eventId: string) => {

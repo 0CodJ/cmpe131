@@ -18,7 +18,7 @@ import { Plus, X } from "lucide-react";
 // this was commented out because it is not being used 
 // import { supabase } from '../lib/supabase';
 // used to access current user info
-import { useSimpleAuth } from "../context/SimpleAuthContext";
+import { useAuth } from "../context/AuthContext";
 //save events to the local storage 
 import { addEvent } from "../lib/localEvents"; 
 
@@ -40,7 +40,7 @@ export function AddEventForm({
   //when the submission is in progress 
   const [loading, setLoading] = useState(false);
   //current user from auth context 
-  const { profile } = useSimpleAuth();
+  const { profile } = useAuth();
   //initial form data using defaults or the current date 
   const [formData, setFormData] = useState({ 
     title: "",

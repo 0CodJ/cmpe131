@@ -15,7 +15,7 @@ Following features this file does:
 // localEvents is used to store and manage events locally in the browser
 // historyApi is used to fetch historical events from the internet API
 // AddEventForm is used to add events to the database
-// SimpleAuthContext is used to manage authentication for supabase (but this is not working at the moment) 
+// AuthContext is used to manage authentication with Supabase (fully functional) 
 // AuthPanel is used to display the authentication panel
 // AdminDashboard is used to display the admin dashboard
 // TimelineSlider is used to display the timeline slider
@@ -30,7 +30,7 @@ import { listApproved as listApprovedLocal } from './lib/localEvents';
 import { fetchHistoricalEvents, ApiHistoricalEvent } from './lib/historyApi';
 // Import the form component that lets users add their own events
 import { AddEventForm } from './components/AddEventForm';
-import { SimpleAuthProvider, useSimpleAuth } from './context/SimpleAuthContext';
+import { useAuth } from './context/AuthContext';
 import { AuthPanel } from './components/AuthPanel';
 import { AdminDashboard } from './components/AdminDashboard';
 import { TimelineSlider } from './components/TimelineSlider';
@@ -606,7 +606,7 @@ function MainApp() {
     searchEvents(); // Go find events based on current settings
   }, [searchEvents]);
 
-  const { profile } = useSimpleAuth();
+  const { profile } = useAuth();
   const [showAdmin, setShowAdmin] = useState(false);
 
   // This is what gets displayed on the webpage
@@ -932,11 +932,7 @@ function MainApp() {
 }
 
 function App() {
-  return (
-    <SimpleAuthProvider>
-      <MainApp />
-    </SimpleAuthProvider>
-  );
+  return <MainApp />;
 }
 
 // Export this component so it can be used in other files
