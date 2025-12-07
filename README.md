@@ -156,7 +156,6 @@ VITE_SUPABASE_KEY=your_supabase_key_here
 - Events require admin approval before appearing in the timeline
 - The API may be rate-limited; the app includes fallback sample data
 - Negative years represent BC (Before Christ) dates
-- This current build does not have supabase working. Account creation along with custom events is stored locally. 
 
 ---
 # Credits
