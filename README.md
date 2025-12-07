@@ -72,7 +72,7 @@ Getting Started
 2. **Use the Timeline Slider**:
    - Drag the blue handle to navigate through different years
    - The slider automatically adjusts bounds based on available events
-   - Use the zoom controls (+/-) to narrow or widen the year range (5, 10, 25, 50, 100, 200, 500 year increments).
+   - Use the zoom controls (+/-) to narrow or widen the year range (5, 10, 25, 50, 100, 200, 500 year increments)
 
 3. **Filter by Category**:
    - Select a category from the dropdown to filter events
@@ -86,7 +86,7 @@ Getting Started
 
 ### Adding Custom Events
 
-1. **Sign In**: Create an account or login if you haven't already
+1. **Sign In**: Create an account or login if you haven't already. (Note: Creating an account will require for admin to approve it in order to create custom events)
 
 2. **Click "Add Event"**: Find the "Add Event" button in the interface
 
