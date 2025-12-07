@@ -152,7 +152,6 @@ VITE_SUPABASE_KEY=your_supabase_key_here
 
 ## Notes
 
-- Custom events are stored in browser localStorage
 - Events require admin approval before appearing in the timeline
 - The API may be rate-limited; the app includes fallback sample data
 - Negative years represent BC (Before Christ) dates
