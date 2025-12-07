@@ -2,7 +2,7 @@
 
 The Parallel History Slider is a web application that uses React, TypeScript, Tailwind and Supabase. The purpose of this website is for users to be able to search for historical events at any month and date and see what other events have occured. Users can interact with the a timeline slider to jump into any point in time, use search/filter/zoom functions to narrow down the event search, and create accounts to make suggestions on events that should be added to the website.
 
-**Disclaimer**: This website is not 100% historically accurate so there are bound to be some discrepancies. This website is for general learning, not for professional research. Do note some events may contain senstiive topics with regards to politics, wars, and terrorism. If you are uncomfortable with these topics, it is recommended to not use this website.  
+**Disclaimer**: This website is not 100% historically accurate so there are bound to be some discrepancies. This website is for general learning, not for professional research. Do note some events may contain sensitive topics with regards to politics, wars, and terrorism. If you are uncomfortable with these topics, it is recommended to not use this website.  
 
 **Created by The Curious Historians - SJSU CMPE 131**
 
